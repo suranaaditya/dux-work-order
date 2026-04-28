@@ -10,13 +10,24 @@ This file is persistent memory for all future work on this app. Read it at the s
 - Purpose: civil works contract management; reusable beyond RGI
 
 ## CRITICAL — how artifacts are created (this rule overrides any default Frappe pattern you know)
-- ALL DocTypes, Pages, Reports, Print Formats, Dashboards, Workflows, Client Scripts, Server Scripts MUST be created through the Frappe Desk UI (the web interface, accessed by logging into the site as Administrator).
-- DO NOT create doctypes by hand-writing JSON files.
-- DO NOT use `bench make-doctype`, `bench make-report`, `bench make-page` or similar CLI generators.
-- Reason: the Desk Form Builder generates clean and correct `__init__.py`, `<doctype>.json`, `<doctype>.py`, `<doctype>.js` files in the app folder. Past experience on this team shows that any other method causes subtle issues — missing files, wrong module assignments, broken hooks, naming mismatches.
-- After a doctype is created in Desk, you may edit the generated `.py` (controller) and `.js` (client script) files freely for custom logic — validations, on_submit handlers, refresh handlers, button handlers.
-- NEVER edit a doctype's `.json` file by hand to add/remove/rename fields. Always go back to Desk Form Builder for field changes; it will regenerate the JSON cleanly.
-- Developer mode MUST be ON (`developer_mode: 1` in `sites/erp.jewonline.in/site_config.json`) so Desk changes save as files in the app folder, not as database-only customizations.
+- ALL DocTypes, Pages, Reports, Print Formats, Dashboards, Workflows, Client Scripts, Server Scripts MUST be created by inserting Frappe documents through `bench --site erp.jewonline.in console`. Frappe natively writes the folder, `__init__.py`, `<name>.json`, `<name>.py`, and `<name>.js` files into the app directory when a DocType (or other artifact) is inserted with `developer_mode = 1` and `custom = 0`.
+- DO NOT hand-write JSON files for new artifacts.
+- DO NOT use `bench make-doctype`, `bench make-report`, `bench make-page` or any similar CLI generator.
+- DO NOT click through the Desk Form Builder UI for this build — we are using the console-script approach so each step is reproducible and the script itself is the spec.
+- AFTER Frappe generates the files, you MAY edit the generated `.py` (controller) and `.js` (client script) files freely for custom logic — validations, on_submit handlers, refresh handlers, button handlers.
+- NEVER edit a generated `.json` file by hand to add/remove/rename fields. To change fields, write a follow-up console script that loads the doctype document, modifies it, and saves it. Frappe will rewrite the JSON cleanly.
+- Developer mode MUST be ON (`developer_mode: 1` in `sites/erp.jewonline.in/site_config.json`). Without it, Frappe stores changes only in the database and does NOT write app files — that breaks the entire workflow.
+
+### Standard execution pattern for every artifact step
+1. Write a Python script (heredoc or .py file) that builds and inserts the artifact document(s).
+2. Pipe or pass the script into `bench --site erp.jewonline.in console`.
+3. Verify the files Frappe generated in the app folder.
+4. Open the generated controller `.py` and add custom logic.
+5. `bench --site erp.jewonline.in migrate`
+6. `bench --site erp.jewonline.in clear-cache`
+7. Ask the user to run `bench restart` from their own console.
+8. Verify the artifact loads in Desk.
+9. Git commit.
 
 ## Bench CLI commands ALLOWED
 - `bench new-app dux_civil_works` (only once, for app creation)
