@@ -57,6 +57,16 @@ This file is persistent memory for all future work on this app. Read it at the s
      apps/dux_civil_works/dux_civil_works/dux_civil_works/<artifact_type>/<artifact_name>/
    This is expected: app folder → app package → module folder, where module name
    happens to equal app name.
+
+   Note — file generation differs by doctype kind:
+   - Parent / standalone DocType (any non-istable doctype, e.g. `is_submittable: 1`
+     or a Single): Frappe writes `__init__.py`, `<name>.json`, `<name>.py`,
+     `<name>.js`, AND `test_<name>.py`.
+   - Child table (`istable: 1`, e.g. Civil Work Order Summary Item): Frappe
+     writes `__init__.py`, `<name>.json`, `<name>.py` only. NO `.js` (child
+     tables have no standalone client form) and NO `test_<name>.py` stub. This
+     is standard Frappe behaviour, not a missing artifact — verification scripts
+     that check for `.js` on a child table will give a false negative.
 4. Open the generated controller .py file and add custom logic.
 5. Run a verification script through `bench --site erp.jewonline.in console` to
    exercise validations and behavior — DO NOT verify by clicking around in Desk.
