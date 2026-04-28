@@ -35,21 +35,56 @@ This file is persistent memory for all future work on this app. Read it at the s
 - `bench --site erp.jewonline.in migrate`
 - `bench --site erp.jewonline.in clear-cache`
 - `bench --site erp.jewonline.in console` (Python REPL for inspection/debugging only)
-- `bench restart`, `bench build`, `bench setup requirements`
+- `bench build`, `bench setup requirements`
 
 ## Bench CLI commands FORBIDDEN
 - `bench make-doctype`, `bench make-report`, `bench make-page`, `bench make-fixtures`
 - Any command that auto-generates artifact files outside Desk
+- `bench restart` (requires sudo on this supervisord-managed bench; use the
+  Bench reload procedure above instead)
 
 ## Workflow per artifact (use this pattern every time)
-1. Log into Desk on erp.jewonline.in as Administrator
-2. Create the artifact through Desk UI (DocType form, Report form, etc.)
-3. Save → Frappe writes files into `apps/dux_civil_works/dux_civil_works/<type>/<name>/`
-4. Pull those generated files locally
-5. Edit `.py` controller / `.js` client script for custom logic
-6. Run `bench --site erp.jewonline.in migrate` then `bench --site erp.jewonline.in clear-cache`
-7. Test in Desk
-8. Git commit
+
+1. Write a Python script that builds and inserts the artifact document(s) (DocType, Report, Print Format, Workspace, etc.).
+2. Save the script to /tmp/<descriptive_name>.py and execute via:
+     bench --site erp.jewonline.in console < /tmp/<descriptive_name>.py
+3. Verify the files Frappe generated in the app folder. The real path includes
+   THREE levels of dux_civil_works nesting:
+     apps/dux_civil_works/dux_civil_works/dux_civil_works/<artifact_type>/<artifact_name>/
+   This is expected: app folder → app package → module folder, where module name
+   happens to equal app name.
+4. Open the generated controller .py file and add custom logic.
+5. Run a verification script through `bench --site erp.jewonline.in console` to
+   exercise validations and behavior — DO NOT verify by clicking around in Desk.
+6. bench --site erp.jewonline.in migrate
+7. bench --site erp.jewonline.in clear-cache
+8. Reload bench processes (see "Bench reload procedure" below).
+9. Functional smoke check from console.
+10. Git commit.
+
+## Bench reload procedure
+
+This bench is supervisord-managed. `bench restart` requires sudo and is not
+available to the frappe user. Instead:
+
+For controller (.py) or client script (.js) changes — gunicorn HUP only:
+  1. Find the gunicorn master PID:
+       ps -ef | grep "gunicorn: master" | grep -v grep
+  2. Send SIGHUP to it:
+       kill -HUP <master_pid>
+  3. Verify worker PIDs changed (master PID stays the same):
+       ps -ef | grep "gunicorn: worker" | grep -v grep
+     If worker PIDs flipped, reload succeeded.
+
+For changes that affect background jobs, scheduled tasks, or hooks fired by
+queued workers — restart RQ workers + scheduler too:
+  Send SIGTERM to the RQ worker and scheduler processes; supervisord respawns them.
+  (Most artifact additions in this build do NOT need this; controller-only
+  changes are gunicorn HUP only.)
+
+Tell the user when you have completed the reload and which procedure was used.
+The user no longer needs to run `bench restart` from their own console for
+artifact-creation steps that only touch controllers and client scripts.
 
 ## Git discipline
 - App folder is its own Git repo
