@@ -24,7 +24,9 @@
   "apply_labour_cess_by_default",
   "cb_statutory_1",
   "default_labour_cess_pct",
-  "default_tds_category"
+  "default_tds_category",
+  "section_company_accounts",
+  "company_accounts"
  ],
  "fields": [
   {
@@ -138,13 +140,25 @@
    "fieldtype": "Link",
    "label": "Default TDS Category",
    "options": "Tax Withholding Category"
+  },
+  {
+   "description": "Default GL accounts for civil works deductions, configured per company. Referenced when an RA Bill auto-populates retention, mobilization recovery, cess, and other deduction rows. Each row maps one Company \u2192 its accounts.",
+   "fieldname": "section_company_accounts",
+   "fieldtype": "Section Break",
+   "label": "Company-wise Default Accounts"
+  },
+  {
+   "fieldname": "company_accounts",
+   "fieldtype": "Table",
+   "label": "Company Accounts",
+   "options": "Civil Works Company Account"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-04-28 18:55:07.252349",
+ "modified": "2026-04-29 00:47:33.372097",
  "modified_by": "Administrator",
  "module": "Dux Civil Works",
  "name": "Civil Works Settings",
