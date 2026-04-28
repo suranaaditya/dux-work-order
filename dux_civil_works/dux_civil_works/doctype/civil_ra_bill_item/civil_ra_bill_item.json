@@ -1,0 +1,140 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-04-29 01:18:43.917533",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "boq_item_ref",
+  "item_no",
+  "summary_head",
+  "description",
+  "uom",
+  "estimated_qty",
+  "deviation_limit_pct",
+  "previous_cumulative_qty",
+  "cumulative_qty",
+  "this_bill_qty",
+  "rate",
+  "this_bill_amount"
+ ],
+ "fields": [
+  {
+   "columns": 1,
+   "description": "Internal reference to the BOQ child row name. Used to chain cumulative quantities across RA bills.",
+   "fieldname": "boq_item_ref",
+   "fieldtype": "Data",
+   "label": "BOQ Row",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "fieldname": "item_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Item No",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "fieldname": "summary_head",
+   "fieldtype": "Data",
+   "label": "Head",
+   "read_only": 1
+  },
+  {
+   "columns": 3,
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Description",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "fieldname": "uom",
+   "fieldtype": "Link",
+   "label": "UOM",
+   "options": "UOM",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "description": "Original BOQ estimated quantity for reference.",
+   "fieldname": "estimated_qty",
+   "fieldtype": "Float",
+   "label": "BOQ Qty",
+   "precision": "3",
+   "read_only": 1
+  },
+  {
+   "description": "Inherited from BOQ. Cumulative qty cannot exceed estimated_qty * (1 + this/100) at submit.",
+   "fieldname": "deviation_limit_pct",
+   "fieldtype": "Percent",
+   "label": "Dev. Limit %",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "description": "Cumulative qty billed up to (but not including) this RA Bill. Auto-pulled from prior submitted RA Bills for the same BOQ row.",
+   "fieldname": "previous_cumulative_qty",
+   "fieldtype": "Float",
+   "label": "Prev. Cum. Qty",
+   "precision": "3",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "description": "Cumulative qty billed AS OF this RA Bill. User enters this; >= previous_cumulative_qty.",
+   "fieldname": "cumulative_qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Cum. Qty Now",
+   "precision": "3"
+  },
+  {
+   "columns": 1,
+   "description": "cumulative_qty - previous_cumulative_qty. Auto-computed.",
+   "fieldname": "this_bill_qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "This Bill Qty",
+   "precision": "3",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "fieldname": "rate",
+   "fieldtype": "Currency",
+   "label": "Rate",
+   "options": "company_currency",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "description": "this_bill_qty * rate. Auto-computed.",
+   "fieldname": "this_bill_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "This Bill Amt",
+   "options": "company_currency",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-04-29 01:18:43.917533",
+ "modified_by": "Administrator",
+ "module": "Dux Civil Works",
+ "name": "Civil RA Bill Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
