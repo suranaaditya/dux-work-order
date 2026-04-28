@@ -28,7 +28,9 @@ This file is persistent memory for all future work on this app. Read it at the s
 7. Reload bench processes per the 'Bench reload procedure' section below
    (gunicorn HUP for controller/JS changes; add RQ worker SIGTERM if background
    jobs or hooks are affected). Confirm the reload to the user.
-8. Verify the artifact loads in Desk.
+8. Run a verification script through `bench --site erp.jewonline.in console`
+   that exercises the artifact's behavior — load defaults, trigger validations,
+   confirm field metadata. DO NOT verify by clicking around in Desk.
 9. Git commit.
 
 ## Bench CLI commands ALLOWED
