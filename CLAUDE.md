@@ -100,6 +100,28 @@ Tell the user when you have completed the reload and which procedure was used.
 The user no longer needs to run `bench restart` from their own console for
 artifact-creation steps that only touch controllers and client scripts.
 
+## UOM convention for civil works
+
+Production sites have the standard civil-engineering UOM abbreviations
+already configured: Cum, Sqm, Rmt, Mtr, Brass, Quintal, MT, Lump Sum, etc.
+Use these abbreviations in all verification scripts, sample data, and tests.
+
+This dev site (erp.jewonline.in) may not have all of them — at the time of
+Step 4 build, `Cum`, `Sqm`, and `Mtr` were missing. If a verification script
+fails with a UOM `LinkValidationError` on the dev site, do NOT seed UOMs
+from the app. Instead:
+
+1. Check what UOMs exist on the dev site:
+     bench --site erp.jewonline.in console
+     >>> import frappe
+     >>> [u.name for u in frappe.get_all("UOM", limit=200)]
+2. Substitute a UOM that exists on the dev site for the test run.
+3. Note the gap in your verification report so the user can sync the dev
+   site's UOM list with production if desired.
+
+Do NOT add UOM seeding to this app under any circumstances — UOM management
+is the user's responsibility on their own sites.
+
 ## Git discipline
 - App folder is its own Git repo
 - Branch: main
