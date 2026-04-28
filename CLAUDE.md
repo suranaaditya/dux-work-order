@@ -63,3 +63,18 @@ The build will proceed in numbered steps:
 - Later: Amendments, Measurement Book, Final Bill, DLP, FIM, reports
 
 Each step will arrive as its own prompt. Wait for the next prompt before doing anything beyond the current step's scope.
+
+## Known environment quirks
+- `bench migrate` previously failed during `sync_fixtures` due to three sibling apps
+  (hsc_master_inhouse, pipe_laying_inhouse, purchase_register) exporting a
+  `Welcome Workspace` Workspace fixture with `type: null`, which violated the
+  mandatory `type` field in this Frappe version.
+- Fix applied: patched `type` to "Workspace" in each app's
+  `fixtures/workspace.json`. Diff is uncommitted in those three apps' repos
+  pending upstream cleanup.
+- If migrate ever fails again with `MandatoryError: [Workspace, Welcome Workspace]: type`,
+  re-check those three fixture files first — an upstream pull may have reverted
+  the patch.
+- Side note: those three apps probably shouldn't be exporting `Welcome Workspace`
+  at all (it's a Frappe core artifact). A proper fix is to remove that entry
+  from their fixture exports — flagged for later cleanup, not urgent.
