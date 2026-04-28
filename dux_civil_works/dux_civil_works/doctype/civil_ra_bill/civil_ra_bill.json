@@ -1,0 +1,80 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-04-29 01:07:13.973079",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "civil_work_order",
+  "section_stub_marker",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "default": "RA-.YYYY.-.####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "RA-.YYYY.-.####",
+   "reqd": 1
+  },
+  {
+   "fieldname": "civil_work_order",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Civil Work Order",
+   "options": "Civil Work Order",
+   "reqd": 1
+  },
+  {
+   "description": "This doctype is a stub created in Step 5a-resume to satisfy v16 Link validation from Civil Advance Recovery. The full RA Bill schema (items, deductions, totals, controller logic) is added in Step 5b via the extend-existing-fields pattern. DO NOT submit or use this stub for real data.",
+   "fieldname": "section_stub_marker",
+   "fieldtype": "Section Break",
+   "label": "STUB - extended in Step 5b"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Civil RA Bill",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-04-29 01:07:13.973079",
+ "modified_by": "Administrator",
+ "module": "Dux Civil Works",
+ "name": "Civil RA Bill",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
