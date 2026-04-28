@@ -122,6 +122,50 @@ from the app. Instead:
 Do NOT add UOM seeding to this app under any circumstances — UOM management
 is the user's responsibility on their own sites.
 
+## IPython console-over-stdin pattern
+
+When piping a Python script into `bench --site erp.jewonline.in console`,
+IPython parses cell-by-cell. Nontrivial control flow (nested `if`/`for`/`else`,
+multi-line `with` blocks, deeply indented logic) can hit EOF before IPython
+recognizes the block has terminated, in which case the trailing block is
+SILENTLY DISCARDED — no error, no output, just missing work.
+
+This produces the most insidious failure mode in this environment: the script
+appears to "run" cleanly but does nothing.
+
+For any console script beyond a few flat top-level statements, use the
+`exec(string)` pattern:
+
+    import frappe
+
+    SCRIPT = """
+    # ... arbitrarily nested Python here ...
+    doc = frappe.get_doc("DocType", "X")
+    for f in fields_to_add:
+        if f["fieldname"] not in existing:
+            doc.append("fields", f)
+    doc.save()
+    frappe.db.commit()
+    print("Done")
+    """
+
+    exec(SCRIPT, {"frappe": frappe})
+
+IPython sees one short top-level call (`exec(...)`); the entire SCRIPT is
+compiled by `exec` in one pass and runs as a normal Python module.
+
+Pass any names the inner script needs (like `frappe`) explicitly in the
+exec globals dict — `exec` does NOT inherit IPython's namespace by default.
+
+Use this pattern by default for any console script with:
+- Nested loops or conditionals
+- Function or class definitions
+- Try/except blocks with multi-line handlers
+- Anything more than ~10 lines of flat statements
+
+For trivial scripts (just a few `frappe.db.set_value(...)` or print
+statements), direct stdin is fine.
+
 ## Git discipline
 - App folder is its own Git repo
 - Branch: main
