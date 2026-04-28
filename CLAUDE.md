@@ -25,7 +25,9 @@ This file is persistent memory for all future work on this app. Read it at the s
 4. Open the generated controller `.py` and add custom logic.
 5. `bench --site erp.jewonline.in migrate`
 6. `bench --site erp.jewonline.in clear-cache`
-7. Ask the user to run `bench restart` from their own console.
+7. Reload bench processes per the 'Bench reload procedure' section below
+   (gunicorn HUP for controller/JS changes; add RQ worker SIGTERM if background
+   jobs or hooks are affected). Confirm the reload to the user.
 8. Verify the artifact loads in Desk.
 9. Git commit.
 
