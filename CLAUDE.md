@@ -166,6 +166,35 @@ Use this pattern by default for any console script with:
 For trivial scripts (just a few `frappe.db.set_value(...)` or print
 statements), direct stdin is fine.
 
+## Frappe v16 Link field validation
+
+Frappe v16 (this bench runs frappe 16.12.0) enforces at DocType-CREATION time
+that any Link field's `options` must reference an EXISTING DocType. This is
+stricter than older Frappe versions which deferred the check to form-validation
+time.
+
+Practical consequence for this build: when two doctypes link to each other
+(e.g., A.boq_ref → B and B.bill_ref → A), they cannot be created in arbitrary
+order. The dependency must be resolvable: the linked-to side exists first.
+
+The pattern we use:
+
+1. Create a STUB of the linked-to doctype with minimum viable schema (name +
+   naming series + an empty Section Break, no real fields yet). The stub must
+   satisfy `frappe.db.exists("DocType", "X")`.
+2. Create the doctype that links to it (now passes v16 validation).
+3. In a later step, EXTEND the stub with its real schema using the same
+   field-append pattern Pre-Step 5a used for Civil Works Settings:
+     doc = frappe.get_doc("DocType", "X")
+     existing = {f.fieldname for f in doc.fields}
+     for fdef in NEW_FIELDS:
+         if fdef["fieldname"] not in existing:
+             doc.append("fields", fdef)
+     doc.save()
+
+Do NOT delete and recreate a stub doctype to "upgrade" it — you will lose any
+data, hooks, or custom fields attached to it. Always extend.
+
 ## Git discipline
 - App folder is its own Git repo
 - Branch: main
@@ -177,6 +206,45 @@ statements), direct stdin is fine.
 - DocType names: Title Case with `Civil` prefix
 - Field names: snake_case
 - Module: Dux Civil Works
+
+## DEFERRED: Payment Voucher integration for Civil Works Advances (REQUIRED before go-live)
+
+RGI uses a custom doctype `Payment Voucher` (from the dux_voucher app) as
+the primary outflow document. Civil Works Advances paid to contractors flow
+through Payment Voucher, NOT through standard ERPNext Payment Entry.
+
+The Civil Advance Register (Step 5a) currently relies on MANUAL entry of
+tranche rows. Before this app is considered production-ready, we must wire
+the following:
+
+1. Add custom fields to Payment Voucher:
+   - is_civil_works_advance (Check)
+   - civil_advance_type (Select: Mobilization, Material) — visible if checked
+   - civil_work_order (Link: Civil Work Order) — visible if checked
+2. Add hooks in dux_civil_works/hooks.py for Payment Voucher:
+   - on_submit: find or create Civil Advance Register for the WO,
+     append a Tranche row linked to this Payment Voucher
+   - on_cancel: remove the matching Tranche row
+3. The `payment_entry` field on Civil Advance Tranche may need to be
+   renamed/repurposed to reference Payment Voucher instead — design TBD
+   when this work is picked up. Either:
+     (a) Rename the field to `source_voucher` with a Dynamic Link
+         (so it can reference either Payment Entry or Payment Voucher), OR
+     (b) Replace the field outright with a Payment Voucher Link.
+   Preference is (b) for simplicity, unless RGI also occasionally pays
+   advances via standard Payment Entry.
+
+Decision recorded during Step 5a planning:
+- Option B (custom flag on the outflow document with auto-sync hook) chosen
+  over Option A (manual Tranche entry) and Option C (account-driven inference)
+- Tranche cancellation policy: auto-delete on outflow document cancel (not
+  cancelled-flag retention)
+- Multi-type per voucher: not supported — one voucher = one advance type
+- Cross-supplier scope: field shown on every Payment Voucher, no supplier
+  flag for conditional display
+
+Owner: this work is deferred but MUST be completed before the app is
+finalized for production use at RGI.
 
 ## Phasing context (informational, do not act on this now)
 The build will proceed in numbered steps:
