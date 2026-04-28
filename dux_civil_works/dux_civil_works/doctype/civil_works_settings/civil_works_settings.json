@@ -1,0 +1,169 @@
+{
+ "actions": [],
+ "creation": "2026-04-28 18:55:07.252349",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "section_default_contract_terms",
+  "default_retention_percentage",
+  "default_mobilization_advance_pct",
+  "cb_terms_1",
+  "default_mobilization_recovery_pct",
+  "default_material_advance_pct",
+  "cb_terms_2",
+  "default_material_recovery_pct",
+  "default_dlp_months",
+  "section_retention_release",
+  "default_retention_release_on_final_bill",
+  "cb_retention_1",
+  "default_retention_release_after_dlp",
+  "section_deviation",
+  "default_boq_deviation_limit_pct",
+  "section_statutory",
+  "apply_labour_cess_by_default",
+  "cb_statutory_1",
+  "default_labour_cess_pct",
+  "default_tds_category"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_default_contract_terms",
+   "fieldtype": "Section Break",
+   "label": "Default Contract Terms"
+  },
+  {
+   "default": "5",
+   "fieldname": "default_retention_percentage",
+   "fieldtype": "Percent",
+   "label": "Default Retention %"
+  },
+  {
+   "default": "10",
+   "fieldname": "default_mobilization_advance_pct",
+   "fieldtype": "Percent",
+   "label": "Default Mobilization Advance %"
+  },
+  {
+   "fieldname": "cb_terms_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "10",
+   "fieldname": "default_mobilization_recovery_pct",
+   "fieldtype": "Percent",
+   "label": "Default Mobilization Recovery % per RA"
+  },
+  {
+   "default": "0",
+   "fieldname": "default_material_advance_pct",
+   "fieldtype": "Percent",
+   "label": "Default Material Advance %"
+  },
+  {
+   "fieldname": "cb_terms_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "default_material_recovery_pct",
+   "fieldtype": "Percent",
+   "label": "Default Material Recovery % per RA"
+  },
+  {
+   "default": "12",
+   "fieldname": "default_dlp_months",
+   "fieldtype": "Int",
+   "label": "Default DLP (Months)"
+  },
+  {
+   "description": "These two percentages must sum to 100.",
+   "fieldname": "section_retention_release",
+   "fieldtype": "Section Break",
+   "label": "Default Retention Release Schedule"
+  },
+  {
+   "default": "50",
+   "fieldname": "default_retention_release_on_final_bill",
+   "fieldtype": "Percent",
+   "label": "Release on Final Bill %"
+  },
+  {
+   "fieldname": "cb_retention_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "50",
+   "fieldname": "default_retention_release_after_dlp",
+   "fieldtype": "Percent",
+   "label": "Release After DLP %"
+  },
+  {
+   "fieldname": "section_deviation",
+   "fieldtype": "Section Break",
+   "label": "Default Deviation Limit"
+  },
+  {
+   "default": "5",
+   "description": "Maximum allowable execution beyond BOQ qty per item without raising an Amendment.",
+   "fieldname": "default_boq_deviation_limit_pct",
+   "fieldtype": "Percent",
+   "label": "BOQ Item Deviation Limit %"
+  },
+  {
+   "fieldname": "section_statutory",
+   "fieldtype": "Section Break",
+   "label": "Statutory Defaults"
+  },
+  {
+   "default": "0",
+   "fieldname": "apply_labour_cess_by_default",
+   "fieldtype": "Check",
+   "label": "Apply Labour Welfare Cess by Default"
+  },
+  {
+   "fieldname": "cb_statutory_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.apply_labour_cess_by_default",
+   "fieldname": "default_labour_cess_pct",
+   "fieldtype": "Percent",
+   "label": "Default Labour Cess %",
+   "mandatory_depends_on": "eval:doc.apply_labour_cess_by_default"
+  },
+  {
+   "fieldname": "default_tds_category",
+   "fieldtype": "Link",
+   "label": "Default TDS Category",
+   "options": "Tax Withholding Category"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-04-28 18:55:07.252349",
+ "modified_by": "Administrator",
+ "module": "Dux Civil Works",
+ "name": "Civil Works Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

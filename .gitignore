@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.so
+
+# Frappe
+node_modules/
+*.log
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
