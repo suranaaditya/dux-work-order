@@ -195,6 +195,66 @@ The pattern we use:
 Do NOT delete and recreate a stub doctype to "upgrade" it — you will lose any
 data, hooks, or custom fields attached to it. Always extend.
 
+## Frappe lifecycle hook persistence — `on_submit` and `on_cancel`
+
+CRITICAL: Plain attribute assignment inside `on_submit` and `on_cancel` does
+NOT persist to the database.
+
+These hooks fire AFTER Frappe writes the document to DB. Any `self.field = X`
+assignment in them only mutates the in-memory object — the DB row is already
+written and Frappe will not re-write it.
+
+The canonical fix is `db_set`:
+
+    def on_submit(self):
+        self.do_side_effects_on_other_docs()
+        self.db_set("status", "Submitted", update_modified=False)
+
+    def on_cancel(self):
+        self.do_reversal_on_other_docs()
+        self.db_set("status", "Cancelled", update_modified=False)
+
+Use `update_modified=False` so the DB write does not bump the `modified`
+timestamp (which would invalidate any in-flight document references).
+
+For computed values used by both `validate` (where attribute assignment IS
+correct, since it precedes the DB write) and the lifecycle hooks, factor
+out a pure helper:
+
+    def _compute_status(self):
+        if self.docstatus == 2:
+            return "Cancelled"
+        ...
+
+    def set_status(self):
+        # Used by validate
+        self.status = self._compute_status()
+
+    def on_submit(self):
+        self.db_set("status", self._compute_status(), update_modified=False)
+
+This was the pattern adopted in Civil RA Bill controller during Step 5b.
+
+### TimestampMismatch after failed submit
+
+When `doc.submit()` raises during `before_submit` validations, Frappe has
+already touched the in-memory `_original_modified` marker. A subsequent
+`doc.save()` on the same in-memory instance will then raise
+`TimestampMismatch`.
+
+The fix in test scripts and any code that catches a submit failure:
+
+    try:
+        doc.submit()
+    except frappe.ValidationError:
+        doc.reload()       # reset in-memory timestamp from DB
+        # ... now safe to save() again
+
+In production code paths this is rarely an issue because failed submits
+typically end the request. The pitfall is most common in console scripts
+and tests that probe both the failure path and recovery in the same
+session.
+
 ## Git discipline
 - App folder is its own Git repo
 - Branch: main
