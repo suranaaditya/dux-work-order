@@ -306,6 +306,61 @@ Decision recorded during Step 5a planning:
 Owner: this work is deferred but MUST be completed before the app is
 finalized for production use at RGI.
 
+## Phase 2 design decision: Measurement Book (MB) → RA Bill flow
+
+LOCKED during Phase 1 build. Phase 2 implementation must follow these rules.
+
+### Architecture: Model A — RA Bill is user-initiated, pulls from MB on demand
+
+When the Civil Measurement Book doctype lands in Phase 2:
+
+- MB entries are the SOURCE OF TRUTH for measured quantity per BOQ item.
+- MB is filled by the site engineer, one entry per measurement event with
+  location/chainage/dimensions/calculated qty/date.
+- RA Bill stays user-initiated. The user creates a draft RA Bill when ready
+  to bill — closing an MB period does NOT auto-create an RA Bill.
+- On RA Bill draft creation, the system computes cumulative_qty by SUMMING
+  all MB entries for each BOQ item up to bill_date.
+- The user's role shifts from typing cumulative_qty to CERTIFYING it. The
+  user may certify LESS than what MB shows (a quality hold, for example)
+  but never MORE.
+- The chain is: measured (MB) >= certified (RA Bill cumulative_qty)
+                >= billed (this_bill_qty after deductions/holds).
+
+Reasons for choosing Model A over auto-creation:
+- MB and RA Bill have different approvers (site engineer vs. finance)
+- One MB period may generate multiple RA Bills, or one RA Bill may span
+  multiple MB periods
+- Matches Indian CPWD/PWD practice
+
+### Per-WO toggle: `use_measurement_book` (Check, on Civil Work Order)
+
+Not every WO will use MB. Smaller renovations (toilet block, badminton
+court) don't justify the overhead; larger projects (new hostel, academic
+block) benefit from it.
+
+- Civil Work Order gets a new field `use_measurement_book` (Check, default
+  off) added in Phase 2.
+- If ON: RA Bills for this WO pull cumulative_qty from MB. The cumulative_qty
+  field on RA Bill Item becomes read-only (or shown as "MB measured: X" with
+  user-editable certified value bounded by MB sum).
+- If OFF: RA Bills accept manual cumulative_qty entry (current Phase 1
+  behavior). MB is not consulted.
+
+Implementation impact on Phase 1 code:
+- Civil RA Bill controller's `populate_items_from_boq` gains a branch:
+    if wo.use_measurement_book:
+        cumulative_qty = sum_mb_entries_for_boq_item(boq_item, up_to=bill_date)
+    else:
+        cumulative_qty = previous_cumulative_qty   # user enters manually
+- Civil RA Bill before_submit gets a new validation:
+    if wo.use_measurement_book:
+        for each item: assert cumulative_qty <= MB sum for that BOQ item
+- A "Refresh from MB" button on draft RA Bills, for WOs with toggle on.
+
+Phase 1 RA Bills entered manually before MB module exists are unaffected.
+The toggle defaults off, so existing data behaves as it always did.
+
 ## Phasing context (informational, do not act on this now)
 The build will proceed in numbered steps:
 - Step 1 (this one): app scaffold + memory
