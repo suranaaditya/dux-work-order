@@ -27,11 +27,13 @@
   },
   {
    "columns": 2,
-   "description": "Must match a Summary Head on the parent Work Order.",
+   "description": "Service category from Item Group 'Work Order Items'. Detailed BOQ rows reference one of these summary heads. Pick from seeded service items (Civil Construction, Plumbing Works, etc.) or any user-created Item in the same group.",
    "fieldname": "summary_head",
-   "fieldtype": "Data",
+   "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Summary Head",
+   "link_filters": "[[\"Item\", \"item_group\", \"=\", \"Work Order Items\"]]",
+   "options": "Item",
    "reqd": 1
   },
   {
@@ -95,7 +97,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-04-29 00:21:26.252326",
+ "modified": "2026-04-29 11:03:58.637033",
  "modified_by": "Administrator",
  "module": "Dux Civil Works",
  "name": "Civil BOQ Item",

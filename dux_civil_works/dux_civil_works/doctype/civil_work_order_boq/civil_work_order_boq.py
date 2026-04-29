@@ -16,6 +16,7 @@ class CivilWorkOrderBOQ(Document):
 		self.set_line_amounts()
 		self.set_boq_total()
 		self.validate_summary_heads_exist_on_wo()
+		self.validate_boq_summary_heads_are_service_items()
 		self.set_variance()
 
 	def before_submit(self):
@@ -78,6 +79,28 @@ class CivilWorkOrderBOQ(Document):
 					"Valid heads: {3}"
 				).format(idx, row.summary_head, self.civil_work_order,
 						 ", ".join(sorted(wo_heads)) or "(none)"))
+
+	def validate_boq_summary_heads_are_service_items(self):
+		"""Defensive check: each BOQ row's summary_head must be a service Item."""
+		if not self.boq_items:
+			return
+		for idx, row in enumerate(self.boq_items, start=1):
+			if not row.summary_head:
+				continue
+			item_data = frappe.db.get_value(
+				"Item", row.summary_head,
+				["item_group", "disabled"], as_dict=True,
+			)
+			if not item_data:
+				frappe.throw(_("BOQ row {0}: summary head Item '{1}' does not exist.").format(
+					idx, row.summary_head))
+			if item_data.disabled:
+				frappe.throw(_("BOQ row {0}: summary head Item '{1}' is disabled.").format(
+					idx, row.summary_head))
+			if item_data.item_group != "Work Order Items":
+				frappe.throw(_(
+					"BOQ row {0}: summary head '{1}' must be in 'Work Order Items' group."
+				).format(idx, row.summary_head))
 
 	def set_variance(self):
 		wo_total = float(self.wo_total_amount or 0)

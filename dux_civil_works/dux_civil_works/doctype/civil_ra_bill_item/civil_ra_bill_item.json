@@ -38,9 +38,12 @@
   },
   {
    "columns": 1,
+   "description": "Service category from Item Group 'Work Order Items'. Detailed BOQ rows reference one of these summary heads. Pick from seeded service items (Civil Construction, Plumbing Works, etc.) or any user-created Item in the same group.",
    "fieldname": "summary_head",
-   "fieldtype": "Data",
+   "fieldtype": "Link",
    "label": "Head",
+   "link_filters": "[[\"Item\", \"item_group\", \"=\", \"Work Order Items\"]]",
+   "options": "Item",
    "read_only": 1
   },
   {
@@ -126,7 +129,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-04-29 01:18:43.917533",
+ "modified": "2026-04-29 11:03:58.687536",
  "modified_by": "Administrator",
  "module": "Dux Civil Works",
  "name": "Civil RA Bill Item",

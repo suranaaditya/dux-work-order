@@ -10,6 +10,7 @@ class CivilWorkOrder(Document):
 	def validate(self):
 		self.set_total_amount()
 		self.validate_summary_items()
+		self.validate_summary_items_are_service_items()
 		self.validate_retention_release_split()
 		self.validate_schedule_dates()
 
@@ -35,6 +36,27 @@ class CivilWorkOrder(Document):
 				frappe.throw(_("Row {0}: Summary Head is required.").format(idx))
 			if (row.amount or 0) <= 0:
 				frappe.throw(_("Row {0}: Amount must be greater than zero.").format(idx))
+
+	def validate_summary_items_are_service_items(self):
+		"""Each summary_head must be an Item in the 'Work Order Items' group and not disabled."""
+		if not self.summary_items:
+			return
+		for idx, row in enumerate(self.summary_items, start=1):
+			if not row.summary_head:
+				continue   # validate_summary_items already enforces presence
+			item_data = frappe.db.get_value(
+				"Item", row.summary_head,
+				["item_group", "disabled", "name"], as_dict=True,
+			)
+			if not item_data:
+				frappe.throw(_("Row {0}: Summary head Item '{1}' does not exist.").format(idx, row.summary_head))
+			if item_data.disabled:
+				frappe.throw(_("Row {0}: Summary head Item '{1}' is disabled.").format(idx, row.summary_head))
+			if item_data.item_group != "Work Order Items":
+				frappe.throw(_(
+					"Row {0}: Summary head '{1}' must belong to Item Group 'Work Order Items', "
+					"not '{2}'."
+				).format(idx, row.summary_head, item_data.item_group))
 
 	def validate_retention_release_split(self):
 		on_final = self.retention_release_on_final_bill or 0

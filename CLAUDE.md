@@ -672,3 +672,54 @@ records matching its filter).
 DO NOT delete a shipped service Item via the Item form — fixture
 import will recreate it on next migrate. To retire a service Item,
 mark `disabled: 1` in the fixture file itself.
+
+
+## summary_head field semantics (Pre-Step 6b)
+
+The summary_head field on three doctypes is a Link to Item, filtered to
+Item Group 'Work Order Items':
+
+- Civil Work Order Summary Item.summary_head
+- Civil BOQ Item.summary_head
+- Civil RA Bill Item.summary_head
+
+Validation: each value must (a) exist in the Item master, (b) be in the
+'Work Order Items' Item Group, (c) not be disabled. Enforced in:
+
+- Civil Work Order controller validate() — direct check on Summary Items
+  (`validate_summary_items_are_service_items`)
+- Civil Work Order BOQ controller validate() — direct check on BOQ rows
+  (`validate_boq_summary_heads_are_service_items`) AND existing
+  cross-check against parent WO's heads (`validate_summary_heads_exist_on_wo`)
+- Work Order RA Bill — no direct check; values inherit from BOQ via
+  `populate_items_from_boq`
+
+Server-side filter is also enforced via the field's `link_filters` JSON
+on the DocField: `[["Item","item_group","=","Work Order Items"]]`. This
+prevents non-group Items from being saved even if the client picker is
+bypassed.
+
+Client-side picker filtering (set_query) is wired in:
+
+- civil_work_order.js — `frm.set_query("summary_head", "summary_items", ...)`
+- civil_work_order_boq.js — `frm.set_query("summary_head", "boq_items", ...)`
+
+Civil RA Bill Item has no `.js` set_query because RA Bill Items are
+auto-populated from BOQ; user does not pick summary_head directly on
+the RA Bill form.
+
+Phase 2 refinement: tighten the BOQ's set_query to also filter by name
+in the parent WO's summary_items list (so BOQ rows can only reference
+heads actually on that WO, not any service Item).
+
+### Test data update for verification scripts
+
+Verification scripts (Step 3, 4, 5b tests) referenced summary_head as
+free-text strings before this refactor (e.g., `summary_head='Civil'`).
+After Pre-Step 6b, those scripts must use real seeded Item names:
+
+- `'Civil'` → `'Civil Construction'`
+- `'Plumbing'` → `'Plumbing Works'`
+- etc.
+
+Pre-Step 6c re-runs the earlier suites with updated Item references.
