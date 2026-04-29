@@ -511,3 +511,68 @@ Each step will arrive as its own prompt. Wait for the next prompt before doing a
 - Side note: those three apps probably shouldn't be exporting `Welcome Workspace`
   at all (it's a Frappe core artifact). A proper fix is to remove that entry
   from their fixture exports — flagged for later cleanup, not urgent.
+
+
+## Static asset path convention (Frappe app layout)
+
+Static JS, CSS, images for an app live at the 2-LEVEL path:
+  apps/<app_name>/<app_name>/public/js/...
+  apps/<app_name>/<app_name>/public/css/...
+
+NOT at the 3-level path under the module folder. The 3-level structure is
+exclusive to doctypes, reports, print_formats — i.e., things scoped to a
+specific Module within the app. `public/` is app-scoped and lives one level
+above modules.
+
+Concrete path on this app:
+  apps/dux_civil_works/dux_civil_works/public/js/purchase_invoice.js   (correct)
+  NOT: apps/dux_civil_works/dux_civil_works/dux_civil_works/public/...
+
+The hooks.py reference uses the relative path from the inner package:
+  doctype_js = {"Purchase Invoice": "public/js/purchase_invoice.js"}
+
+## Parking convention for in-progress / wrong-architecture files
+
+When work-in-progress code on disk is determined to be architecturally
+wrong but contains reusable parts, PARK rather than delete:
+- Rename the file from `<name>.py` to `<name>.py.parked` so Python cannot
+  import it
+- Leave matching JS / hooks references alone if they are themselves unwired
+  and inert (the JS file isn't loaded; hooks.py isn't pointing at it). They
+  become coupled-but-dormant references that will be updated together when
+  the work is redone.
+- A grep audit during cleanup MAY surface JS string-literal references to
+  parked Python methods. These are benign as long as:
+    1. hooks.py does NOT bind the JS file (no doctype_js / doc_events for it)
+    2. The Python file is .parked (so frappe.call cannot resolve it even if
+       invoked)
+- Do NOT rename .parked files back to .py without explicit user direction
+  AND a corresponding rewrite of the architecturally-wrong portion.
+
+## Step 6 (PI integration) — parked architecture note
+
+A first attempt at Step 6 was interrupted mid-way because the architecture
+was wrong: the items-fetch function assumed PI lines map 1:1 to RA Bill
+items via a single dummy Item. The correct model is one PI line per distinct
+summary_head Item (a service Item from an Item Group called "Work Order
+Items"). The corrective sequence is Pre-Step 6a → 6b → 6c → revised Step 6.
+
+Files in parked state on disk (do not activate without explicit user
+direction and rewrite of the wrong portion):
+  apps/dux_civil_works/dux_civil_works/api/purchase_invoice.py.parked
+
+This file contains two correct functions (get_open_ra_bills,
+get_referenced_ra_bills_summary) and one architecturally-wrong function
+(get_items_from_ra_bills). When the revised Step 6 is built:
+- Lift the two correct functions from the parked file
+- Rewrite get_items_from_ra_bills to group RA Bill items by summary_head
+  Item and produce one PI line per distinct Item with description aggregation
+- Update the 3 frappe.call method-path strings in
+  public/js/purchase_invoice.js to match the new API module shape
+
+Other inert artifacts also kept on disk pending revised Step 6:
+- apps/dux_civil_works/dux_civil_works/api/__init__.py (empty, intentional)
+- apps/dux_civil_works/dux_civil_works/public/js/purchase_invoice.js
+  (correct picker logic, currently unwired in hooks.py)
+- 3 new methods on work_order_ra_bill.py (refresh_invoiced_amount and
+  helpers) — will be called by the revised Step 6's hooks

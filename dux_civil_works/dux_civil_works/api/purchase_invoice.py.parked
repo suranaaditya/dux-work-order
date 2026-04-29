@@ -1,0 +1,102 @@
+# Copyright (c) 2026, Dutch Digitech and contributors
+# Server-side API methods for Purchase Invoice <-> Work Order RA Bill integration.
+
+import frappe
+from frappe import _
+
+
+@frappe.whitelist()
+def get_open_ra_bills(company, supplier):
+	"""Return submitted Work Order RA Bills for the given Company + Supplier
+	that are not yet Fully Invoiced or Closed."""
+	if not (company and supplier):
+		return []
+	bills = frappe.get_all(
+		"Work Order RA Bill",
+		filters={
+			"company": company,
+			"supplier": supplier,
+			"docstatus": 1,
+			"billing_status": ["not in", ["Fully Invoiced", "Closed", "Cancelled"]],
+		},
+		fields=[
+			"name", "civil_work_order", "work_title", "bill_number",
+			"bill_date", "net_payable", "invoiced_amount", "per_invoiced",
+			"billing_status",
+		],
+		order_by="bill_date desc, name desc",
+	)
+	for b in bills:
+		b["remaining_to_invoice"] = (b.get("net_payable") or 0) - (b.get("invoiced_amount") or 0)
+	return bills
+
+
+@frappe.whitelist()
+def get_items_from_ra_bills(ra_bill_names):
+	"""Pull all chargeable items from the given submitted RA Bills into a
+	structure ready for the PI items table.
+
+	Wholesale fetch: every item with this_bill_qty > 0 from each selected RA
+	Bill is returned at full amount, allocated proportionally to the RA Bill's
+	net_payable. User edits on the PI form afterwards. The PI's submit-time
+	validation handles caps.
+
+	Each returned row carries the source RA Bill name and the source RA Bill
+	Item row name so the on_submit hook can update each RA Bill's
+	invoiced_amount accurately.
+	"""
+	if isinstance(ra_bill_names, str):
+		import json
+		ra_bill_names = json.loads(ra_bill_names)
+	if not ra_bill_names:
+		return []
+
+	items = []
+	for ra_bill_name in ra_bill_names:
+		bill = frappe.get_doc("Work Order RA Bill", ra_bill_name)
+		if bill.docstatus != 1:
+			frappe.throw(_("RA Bill {0} is not in Submitted state.").format(ra_bill_name))
+		if bill.billing_status in ("Fully Invoiced", "Closed", "Cancelled"):
+			frappe.throw(_(
+				"RA Bill {0} cannot be invoiced from (status: {1})."
+			).format(ra_bill_name, bill.billing_status))
+
+		gross = float(bill.gross_this_bill or 0)
+		net = float(bill.net_payable or 0)
+		if gross <= 0:
+			continue
+
+		chargeable_lines = [li for li in bill.items if (li.this_bill_qty or 0) > 0]
+		if not chargeable_lines:
+			continue
+
+		for li in chargeable_lines:
+			line_share = float(li.this_bill_amount or 0) / gross
+			allocated_net = round(net * line_share, 2)
+
+			items.append({
+				"item_code": None,
+				"item_name": li.description,
+				"description": (str(li.item_no or "") + " " + str(li.description or "")).strip(),
+				"qty": float(li.this_bill_qty or 0),
+				"uom": li.uom,
+				"rate": float(li.rate or 0),
+				"amount": allocated_net,
+				"wo_ra_bill": bill.name,
+				"wo_ra_bill_item": li.name,
+			})
+	return items
+
+
+@frappe.whitelist()
+def get_referenced_ra_bills_summary(pi_name):
+	"""For a given PI name, return distinct RA Bills referenced and the sum
+	of amounts allocated against each."""
+	rows = frappe.db.sql("""
+		SELECT pii.wo_ra_bill, SUM(pii.amount) AS total_amount
+		FROM `tabPurchase Invoice Item` pii
+		WHERE pii.parent = %s AND IFNULL(pii.wo_ra_bill, '') != ''
+		GROUP BY pii.wo_ra_bill
+		ORDER BY pii.wo_ra_bill
+	""", (pi_name,), as_dict=True)
+	return rows

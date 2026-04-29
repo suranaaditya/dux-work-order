@@ -369,3 +369,52 @@ class WorkOrderRABill(Document):
 		register.recoveries = [r for r in (register.recoveries or []) if r.ra_bill != self.name]
 		if len(register.recoveries) != before:
 			register.save(ignore_permissions=True)
+
+	# ============================================================
+	# Step 6: Purchase Invoice integration - invoiced_amount tracker
+	# ============================================================
+
+	def refresh_invoiced_amount(self):
+		"""Recompute invoiced_amount and per_invoiced by walking submitted
+		Purchase Invoice Items that reference this RA Bill. Called from the
+		PI on_submit/on_cancel hooks. Uses db_set so this is safe to call
+		from any document state."""
+		total = frappe.db.sql("""
+			SELECT IFNULL(SUM(pii.amount), 0) AS total
+			FROM `tabPurchase Invoice Item` pii
+			INNER JOIN `tabPurchase Invoice` pi ON pi.name = pii.parent
+			WHERE pii.wo_ra_bill = %s
+			  AND pi.docstatus = 1
+		""", (self.name,))[0][0] or 0
+		invoiced = float(total)
+		net = float(self.net_payable or 0)
+		pct = (invoiced / net * 100.0) if net > 0 else 0
+		new_status = self._compute_billing_status_with_invoiced(invoiced, net)
+
+		self.db_set("invoiced_amount", invoiced, update_modified=False)
+		self.db_set("per_invoiced", pct, update_modified=False)
+		self.db_set("billing_status", new_status, update_modified=False)
+
+	def _compute_billing_status_with_invoiced(self, invoiced, net):
+		"""Variant of billing status computation that uses an externally
+		recomputed invoiced amount (not the in-memory self.invoiced_amount,
+		which may be stale during hook calls)."""
+		if self.docstatus == 2:
+			return "Cancelled"
+		if self.docstatus == 0:
+			return "Draft"
+		if net <= 0 or invoiced <= 0:
+			return "Submitted"
+		if invoiced + 0.01 < net:
+			return "Partially Invoiced"
+		return "Fully Invoiced"
+
+	@frappe.whitelist()
+	def close_ra_bill(self):
+		"""Manually mark a partially-invoiced RA Bill as Closed (no further
+		invoicing expected). Phase 1: this method exists as a stub; the UI
+		button + finance-policy guardrails ship in a later step."""
+		frappe.throw(_(
+			"close_ra_bill() is not yet implemented. RA Bills move to Closed "
+			"status only via finance-approved write-off in a later phase."
+		))
