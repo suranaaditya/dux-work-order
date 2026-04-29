@@ -723,3 +723,44 @@ After Pre-Step 6b, those scripts must use real seeded Item names:
 - etc.
 
 Pre-Step 6c re-runs the earlier suites with updated Item references.
+
+
+## Regression smoke test
+
+A permanent regression test lives at:
+
+    apps/dux_civil_works/scripts/regression_smoke_test.py
+
+Invoke after any structural change (doctype field type changes, controller
+refactors, doctype renames, fixture changes, hook changes):
+
+    bench --site erp.jewonline.in console < apps/dux_civil_works/scripts/regression_smoke_test.py
+
+OR from inside console:
+
+    from dux_civil_works.scripts.regression_smoke_test import run_smoke_test
+    run_smoke_test()
+
+Exercises Phase 1 end-to-end:
+
+- Civil Work Order create, total auto-calc, retention split validation,
+  naming series, submit
+- Civil Work Order BOQ create, line-amount auto-calc, total reconciliation,
+  cross-WO summary-head validation, submit
+- Civil Advance Register create, tranche entry, balance computation,
+  module-level helpers (`get_or_create_register`, `get_outstanding_balance`)
+- Work Order RA Bill create, auto-populate from BOQ, cumulative-qty entry,
+  auto-deductions (retention, mobilization recovery), net payable, submit
+- RA Bill submit posts recoveries to Register; RA Bill cancel reverses them
+- 5% deviation enforcement blocks submit when exceeded
+- Amend canary: cancel a submitted bill, create amended copy, verify
+  self-reference (validates the rename pilot's self-reference fix)
+- All test docs are cleaned up at the end (cancel + force delete)
+
+The script uses real seeded service Items (Civil Construction, Plumbing
+Works) and full-name UOMs (Cubic Meter, Square Meter, Meter) per the
+post-Pre-Step-6b model.
+
+If the script fails on any phase, the failure point indicates which part
+of the model regressed. Read the printed phase headers above the
+traceback to localize.
