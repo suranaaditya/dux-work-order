@@ -279,3 +279,22 @@ fixtures = [
         "filters": [["item_group", "=", "Work Order Items"]],
     },
 ]
+
+
+# ============================================================
+# Step 6: Purchase Invoice <-> Work Order RA Bill integration
+# ============================================================
+
+# Bundle the JS to load on Purchase Invoice form
+doctype_js = {
+    "Purchase Invoice": "public/js/purchase_invoice.js",
+}
+
+# Server-side hooks for Purchase Invoice <-> Work Order RA Bill linkage
+doc_events = {
+    "Purchase Invoice": {
+        "validate": "dux_civil_works.dux_civil_works.api.purchase_invoice_hooks.pi_validate",
+        "on_submit": "dux_civil_works.dux_civil_works.api.purchase_invoice_hooks.pi_on_submit",
+        "on_cancel": "dux_civil_works.dux_civil_works.api.purchase_invoice_hooks.pi_on_cancel",
+    },
+}

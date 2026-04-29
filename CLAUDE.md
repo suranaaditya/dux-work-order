@@ -764,3 +764,111 @@ post-Pre-Step-6b model.
 If the script fails on any phase, the failure point indicates which part
 of the model regressed. Read the printed phase headers above the
 traceback to localize.
+
+
+## Step 6 - Purchase Invoice integration architecture
+
+The PI integration is the bridge from internal RA Bill certification to
+external contractor invoicing.
+
+### Data model (custom fields on standard Purchase Invoice)
+
+Header level:
+- `is_wo_ra_bill_invoice` (Check) - flag identifying this PI as backing one
+  or more Work Order RA Bills
+- `wo_ra_bills_referenced` (Small Text, read-only) - auto-populated summary
+  of distinct RA Bills referenced + amounts allocated to each
+- `wo_ra_bill_override_reason` (Small Text) - required if total invoiced
+  exceeds RA Bill net payable
+
+Line level:
+- `wo_ra_bill` (Link to Work Order RA Bill, read-only) - the source RA Bill
+- `wo_ra_bill_item` (Data, read-only) - comma-joined source RA Bill Item
+  row names (one PI line typically aggregates multiple BOQ rows)
+
+### Picker flow
+
+User clicks 'Get Items From RA Bill' -> `frappe.call` `get_open_ra_bills`
+filtered by Company + Supplier -> user multi-selects RA Bills -> `frappe.call`
+`get_items_from_ra_bills` returns items GROUPED by `summary_head` Item.
+
+Critical architectural detail: items are grouped by their `summary_head` Item,
+producing ONE PI line per distinct service Item per source RA Bill. A
+single RA Bill spanning N summary heads becomes N PI lines. The PI line's
+description aggregates all underlying BOQ rows (truncated to first 5 with
+"and N more rows" annotation if longer).
+
+PI line shape: `qty=1`, `uom=Nos`, `rate=allocated_net_amount`. The allocation
+distributes the RA Bill's `net_payable` proportionally to each summary
+head's share of `gross_this_bill`. The print format suppresses qty and uom
+(it would read "1 Nos" otherwise) - see "Print format design philosophy"
+section.
+
+### Cap validation (pi_validate hook)
+
+On every PI save where `is_wo_ra_bill_invoice=1`, walk PI items, sum amounts
+per source RA Bill, and check the total invoiced (this PI + all OTHER
+submitted PIs) does not exceed the RA Bill's `net_payable`.
+
+Override path: user with Accounts Manager or System Manager role can
+exceed the cap if `wo_ra_bill_override_reason` is filled in. `msgprint`
+records the override visually; the reason persists on the PI for audit.
+
+### Lifecycle hooks (pi_on_submit, pi_on_cancel)
+
+Both call `_refresh_referenced_ra_bills` which walks the PI's referenced
+RA Bills and invokes each one's `refresh_invoiced_amount()` method. That
+method recomputes `invoiced_amount`, `per_invoiced`, and `billing_status` via
+`db_set` per the lifecycle persistence pattern documented earlier.
+
+### File layout correction
+
+Earlier `## Static asset path convention` section noted that `public/`
+lives at the 2-level path. The `api/` folder is DIFFERENT - it lives at
+the THREE-level path:
+
+    apps/dux_civil_works/dux_civil_works/dux_civil_works/api/
+
+Same level as `doctype/`, `report/`, `print_format/`. Module-scoped Python
+code is 3-levels-deep. Only `public/` (static assets) is at the 2-level
+path. The Python import `dux_civil_works.dux_civil_works.api.purchase_invoice`
+matches the 3-level filesystem path 1:1.
+
+### What's not yet built (Phase 2/3)
+
+- "Close" UI button on Work Order RA Bill (`close_ra_bill` stub exists)
+- Print format for the PI itself (suppression-aware)
+- Workflow for PI approval gating
+
+## Dev-site precondition: Fiscal Year and Company setup
+
+ERPNext requires several finance master records configured before
+Purchase Invoice (or any accounting document) can be SUBMITTED. These
+are Company-level setup, not app concerns - the app does not ship them
+as fixtures because every site/company has its own values.
+
+Encountered on the dev site (`erp.jewonline.in`) during Step 6 verification:
+
+1. **Fiscal Year** must cover the document's posting_date AND apply to
+   the document's Company. Fiscal Year records have an optional
+   `companies` child table - if empty, the FY is GLOBAL (applies to all
+   Companies); if populated, the FY ONLY applies to listed Companies.
+
+   On dev site at the time of Step 6: FY `2026-2027` already existed
+   but was scoped to two specific companies. `GHR CACS Pune` was added
+   to its companies child table to extend coverage.
+
+2. **Round Off Account** must be set on the Company record. Without it,
+   PI submit fails with "Please mention 'Round Off Account' in Company".
+
+3. (Likely more on a fresh Company) - GST tax accounts, default cost
+   center, default expense account, etc. The pattern: a partially-set-up
+   Company will surface each missing field in turn at PI submit.
+
+If a verification script fails with a finance-master error
+(`FiscalYearError`, "Round Off Account", etc.) on a fresh dev site or a
+new Company, this is the cause. Configure the missing field via Desk
+or console; not an app concern.
+
+The app does NOT ship these as fixtures - every site/company has its
+own values, and the app must not impose finance-master defaults.
