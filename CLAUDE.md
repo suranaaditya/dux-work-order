@@ -450,6 +450,41 @@ Implementation impact on Phase 1 code:
 Phase 1 RA Bills entered manually before MB module exists are unaffected.
 The toggle defaults off, so existing data behaves as it always did.
 
+## Print format design philosophy — summary vs detail layers
+
+Documents in this app have a deliberate two-layer structure:
+
+LAYER 1 (page 1) — Summary view, contract-level
+- Summary heads (service Items from "Work Order Items" group)
+- Lump-sum amount per head
+- NO quantity column, NO UOM column displayed
+- Internally each summary line has qty=1 and uom=Nos for accounting,
+  but these are suppressed in print output (would read "1 Nos" which
+  is meaningless to the reader)
+- Reads like a contract page — what executives, contractors, and
+  finance staff sign off on
+
+LAYER 2 (page 2 onwards) — Detail view, engineering-level
+- BOQ items grouped under their summary head as section headings
+- Full proper engineering units (Cubic Meter, Square Meter, Meter,
+  Quintal, Brass, etc. — RGI's full-name UOM convention)
+- Item number, description, UOM, qty, rate, amount columns
+- Reads like a measurement sheet — what site engineers and contractors
+  use to verify work and bill against
+
+This pattern applies consistently across:
+- Civil Work Order printout
+- Civil Work Order BOQ printout (if printed standalone)
+- Work Order RA Bill printout (summary deductions on page 1, detailed
+  measurements on page 2+)
+- Purchase Invoice generated from RA Bill (single line per summary head
+  with description aggregating BOQ details, qty/uom suppressed in print
+  override)
+
+Print formats are not yet built (Phase 2/3). This design is captured
+here so when print format work begins, the pattern is consistent and
+not invented per-document.
+
 ## Phasing context (informational, do not act on this now)
 The build will proceed in numbered steps:
 - Step 1 (this one): app scaffold + memory
