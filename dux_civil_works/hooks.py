@@ -250,3 +250,32 @@ app_license = "mit"
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
+
+
+# ============================================================
+# Pre-Step 6a: app-shipped master data fixtures
+# Loaded in this order on every `bench migrate`:
+#   1. UOM (12 records) - referenced by Items via stock_uom
+#   2. Item Group (1 record: "Work Order Items") - referenced by Items via item_group
+#   3. Item (12 service items) - all in Work Order Items group
+# ============================================================
+
+fixtures = [
+    {
+        "doctype": "UOM",
+        "filters": [
+            ["name", "in", [
+                "Nos", "Lump Sum", "Cubic Meter", "Square Meter", "Meter",
+                "Kilometer", "Quintal", "Tonne", "Brass", "Kg", "Litre", "Day",
+            ]]
+        ],
+    },
+    {
+        "doctype": "Item Group",
+        "filters": [["name", "=", "Work Order Items"]],
+    },
+    {
+        "doctype": "Item",
+        "filters": [["item_group", "=", "Work Order Items"]],
+    },
+]

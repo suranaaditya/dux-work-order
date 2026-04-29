@@ -1,0 +1,86 @@
+[
+ {
+  "doctype": "UOM",
+  "name": "Nos",
+  "uom_name": "Nos",
+  "must_be_whole_number": 1,
+  "enabled": 1
+ },
+ {
+  "doctype": "UOM",
+  "name": "Lump Sum",
+  "uom_name": "Lump Sum",
+  "must_be_whole_number": 0,
+  "enabled": 1
+ },
+ {
+  "doctype": "UOM",
+  "name": "Cubic Meter",
+  "uom_name": "Cubic Meter",
+  "must_be_whole_number": 0,
+  "enabled": 1
+ },
+ {
+  "doctype": "UOM",
+  "name": "Square Meter",
+  "uom_name": "Square Meter",
+  "must_be_whole_number": 0,
+  "enabled": 1
+ },
+ {
+  "doctype": "UOM",
+  "name": "Meter",
+  "uom_name": "Meter",
+  "must_be_whole_number": 0,
+  "enabled": 1
+ },
+ {
+  "doctype": "UOM",
+  "name": "Kilometer",
+  "uom_name": "Kilometer",
+  "must_be_whole_number": 0,
+  "enabled": 1
+ },
+ {
+  "doctype": "UOM",
+  "name": "Quintal",
+  "uom_name": "Quintal",
+  "must_be_whole_number": 0,
+  "enabled": 1
+ },
+ {
+  "doctype": "UOM",
+  "name": "Tonne",
+  "uom_name": "Tonne",
+  "must_be_whole_number": 0,
+  "enabled": 1
+ },
+ {
+  "doctype": "UOM",
+  "name": "Brass",
+  "uom_name": "Brass",
+  "must_be_whole_number": 0,
+  "enabled": 1
+ },
+ {
+  "doctype": "UOM",
+  "name": "Kg",
+  "uom_name": "Kg",
+  "must_be_whole_number": 0,
+  "enabled": 1
+ },
+ {
+  "doctype": "UOM",
+  "name": "Litre",
+  "uom_name": "Litre",
+  "must_be_whole_number": 0,
+  "enabled": 1
+ },
+ {
+  "doctype": "UOM",
+  "name": "Day",
+  "uom_name": "Day",
+  "must_be_whole_number": 0,
+  "enabled": 1
+ }
+]

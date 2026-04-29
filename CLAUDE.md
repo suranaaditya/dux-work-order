@@ -576,3 +576,99 @@ Other inert artifacts also kept on disk pending revised Step 6:
   (correct picker logic, currently unwired in hooks.py)
 - 3 new methods on work_order_ra_bill.py (refresh_invoiced_amount and
   helpers) — will be called by the revised Step 6's hooks
+
+
+## UOM convention for civil works (CORRECTED — supersedes any prior note)
+
+RGI's production UOM master uses FULL NAMES for civil engineering units,
+not Indian abbreviations:
+
+  Cubic Meter   (NOT Cum)
+  Square Meter  (NOT Sqm)
+  Meter         (NOT Mtr / Rmt)
+  Square Foot   (NOT Sqft / Sft)
+  Kg            (RGI master spelling, lowercase 'g')
+  Quintal, Tonne, Brass, Litre, Nos, Lump Sum, Day, Kilometer
+
+All verification scripts, BOQ test data, sample WOs, and any RGI-facing
+documentation must use these full names. Earlier notes in this file
+that suggested using `Cum`/`Sqm`/etc. were based on industry-general
+convention; RGI specifically standardized on full names.
+
+The 12 UOMs the app requires are shipped as a fixture in
+apps/dux_civil_works/dux_civil_works/fixtures/01_uom.json. They are
+imported on every `bench migrate`. RGI production already has these
+12 (and 200+ more); the dev site gets them via the fixture.
+
+DO NOT add Indian abbreviations (Cum, Sqm, Rmt) to either the fixture
+or the production UOM master. RGI's chosen convention is full names.
+
+## App-shipped fixtures (master data the app requires)
+
+The app ships these fixtures, imported on every `bench migrate`. The
+filenames are numeric-prefixed because Frappe imports fixture JSONs
+ALPHABETICALLY BY FILENAME, NOT in the order declared in the
+`fixtures` directive in hooks.py. The `fixtures` directive controls
+EXPORT order (when running `bench export-fixtures`), not import order.
+This is a known Frappe v16 gotcha — always prefix fixture filenames
+when ordering matters.
+
+1. 01_uom.json — 12 UOM records
+2. 02_item_group.json — 1 Item Group: "Work Order Items"
+3. 03_item.json — 12 service Items, all in Work Order Items group,
+   stock_uom = Nos, is_stock_item = 0, is_purchase_item = 1,
+   is_sales_item = 0
+
+Why these are app-shipped (vs user-curated):
+
+- UOMs: only the 12 the app's logic and seeded Items reference. RGI's
+  production master has 200+ UOMs, all left alone. The fixture only
+  declares fields we care about (uom_name, must_be_whole_number); other
+  fields like symbol and common_code are NOT declared, so RGI's existing
+  symbol values for these UOMs survive subsequent migrates.
+
+- Item Group: app logic filters summary_head pickers by this group name.
+  If the group is missing or renamed, the app breaks. Always-present
+  via fixture is the safest design.
+
+- Items: serve as summary_head values on Civil Work Orders. Their key
+  attributes (item_group, stock_uom, is_stock_item, is_purchase_item,
+  is_sales_item) are app-correctness invariants — fixtures enforce them
+  on every migrate. RGI can edit description, default_warehouse,
+  default_supplier, etc. freely; those fields are NOT in the fixture
+  and survive.
+
+### india_compliance gotcha — `gst_hsn_code` AttributeError on Item fixture
+
+The `india_compliance` app installed on this site adds a `validate` hook
+on Item that calls `set_taxes_from_hsn_code(doc)`. That function reads
+`doc.gst_hsn_code` directly. On Frappe v16's fixture import path, an
+Item document constructed from a JSON fixture does NOT have attributes
+populated for fields absent from the JSON, even if those fields exist
+in the doctype's meta as Custom Fields. The result is an `AttributeError:
+'Item' object has no attribute 'gst_hsn_code'` mid-import.
+
+Workaround used in 03_item.json: every Item entry includes
+`"gst_hsn_code": ""`. The `validate_hsn_code` part of the hook returns
+early because our Items have `is_sales_item: 0`, and
+`set_taxes_from_hsn_code` short-circuits because `doc.gst_hsn_code` is
+empty. No real HSN code needed.
+
+If a future site has additional india_compliance custom fields whose
+absence raises AttributeError on Item insert, add them to 03_item.json
+with empty defaults too. This will be revisited if the same issue
+appears with another custom-field-adding app.
+
+### Adding / retiring fixture-shipped Items
+
+Adding a new service Item: add it to fixtures/03_item.json with the same
+field set (including `"gst_hsn_code": ""`). It becomes available on the
+next `bench migrate`. RGI can also create new service Items via the
+standard ERPNext Item form, provided they place the new Item in
+"Work Order Items" group — those user-created Items are not in the
+fixture and persist across migrates (fixture import only touches
+records matching its filter).
+
+DO NOT delete a shipped service Item via the Item form — fixture
+import will recreate it on next migrate. To retire a service Item,
+mark `disabled: 1` in the fixture file itself.
