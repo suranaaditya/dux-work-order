@@ -11,7 +11,7 @@ from dux_civil_works.dux_civil_works.doctype.civil_advance_register.civil_advanc
 )
 
 
-class CivilRABill(Document):
+class WorkOrderRABill(Document):
 	# ============================================================
 	# Lifecycle hooks
 	# ============================================================
@@ -51,7 +51,7 @@ class CivilRABill(Document):
 		if not self.civil_work_order:
 			return
 		prior = frappe.db.count(
-			"Civil RA Bill",
+			"Work Order RA Bill",
 			{
 				"civil_work_order": self.civil_work_order,
 				"docstatus": ["<", 2],
@@ -96,7 +96,7 @@ class CivilRABill(Document):
 		result = frappe.db.sql("""
 			SELECT IFNULL(MAX(rb_item.cumulative_qty), 0) AS qty
 			FROM `tabCivil RA Bill Item` rb_item
-			INNER JOIN `tabCivil RA Bill` rb ON rb.name = rb_item.parent
+			INNER JOIN `tabWork Order RA Bill` rb ON rb.name = rb_item.parent
 			WHERE rb_item.boq_item_ref = %s
 			  AND rb.civil_work_order = %s
 			  AND rb.docstatus = 1

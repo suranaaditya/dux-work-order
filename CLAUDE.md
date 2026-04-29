@@ -255,6 +255,95 @@ typically end the request. The pitfall is most common in console scripts
 and tests that probe both the failure path and recovery in the same
 session.
 
+## DocType rename procedure (Frappe v16)
+
+When renaming a DocType in this app, use this complete procedure. Frappe v16's `rename_doc` is comprehensive at the metadata + filesystem layer but does NOT touch Python/JS source code string literals — those require a manual audit and fix.
+
+### 1. Pre-flight
+- Confirm `developer_mode = 1`
+- Confirm git working tree is clean
+- Confirm zero in-flight drafts of the doctype being renamed
+- Snapshot pre-rename inbound Link references for comparison
+- `bench --site erp.jewonline.in backup --with-files` (non-negotiable)
+
+### 2. Rename invocation
+On Frappe 16.12.0 the CLI command `bench rename-doc` does NOT exist. Use `frappe.rename_doc()` via `bench --site erp.jewonline.in console`. Use `force=False` (default) so the call raises `frappe.NameError` if the target name already exists.
+
+```python
+frappe.rename_doc("DocType", "Old Name", "New Name", force=False)
+frappe.db.commit()
+```
+
+### 3. What v16 `rename_doc` DOES handle
+- Renames `tabOLD` → `tabNEW` (database table)
+- Renames row in `tabDocType`
+- Updates child tables' `parenttype` from OLD to NEW
+- Updates inbound Link `options` values across `tabDocField` and `tabCustom Field`
+- Renames the on-disk folder `OLD/` → `NEW/`
+- Renames all files inside (e.g., `old.py` → `new.py`, `old.json` → `new.json`, `old.js` → `new.js`, `test_old.py` → `test_new.py`)
+- Renames the Python class definition (e.g., `class CivilRABill(Document):` → `class WorkOrderRABill(Document):`)
+- Rewrites the JSON's internal `"name"` field
+
+### 4. What v16 `rename_doc` does NOT handle (manual fixes required)
+
+#### 4a. Self-referencing Link fields
+The doctype's auto-added `amended_from` field on submittable doctypes (and any other Link field whose `options` references the doctype's own name) is NOT updated. Fix immediately:
+
+```python
+def fix_self_references_after_rename(new_name, old_name):
+    """Frappe v16 rename_doc misses self-referencing Link options.
+    Call this immediately after frappe.rename_doc."""
+    doc = frappe.get_doc("DocType", new_name)
+    fixed = []
+    for f in doc.fields:
+        if f.fieldtype == "Link" and f.options == old_name:
+            f.options = new_name
+            fixed.append(f.fieldname)
+    if fixed:
+        doc.save()
+        frappe.db.commit()
+        frappe.clear_cache(doctype=new_name)
+    return fixed
+```
+
+This applies to ANY field whose `options` references the old doctype name from within the renamed doctype itself — `amended_from` is the most common, but any Link field that references its own parent doctype (e.g., a "Parent" link for hierarchies) would also be affected.
+
+#### 4b. String literals in source code
+`rename_doc` does NOT walk Python or JS source files looking for string literals. Any reference to the OLD name in code as a string — `frappe.db.count("OLD", ...)`, `frappe.get_doc("OLD", ...)`, raw SQL referencing `tabOLD`, error messages, etc. — must be manually found and fixed.
+
+REQUIRED audit pattern after every rename, run from the app root:
+
+```bash
+grep -rn '"OLD"' --include='*.py' .
+grep -rn "'OLD'" --include='*.py' .
+grep -rn 'tabOLD\b' --include='*.py' .         # word boundary preserves child doctype refs like tabOLD Item
+grep -rn '"OLD"' --include='*.js' .
+grep -rn "'OLD'" --include='*.js' .
+grep -rln '"OLD"' --include='*.json' . | grep -v <renamed_folder>/<renamed_doctype>.json
+```
+
+Apply each fix individually with anchored `str_replace` — never global find-replace, because a child doctype like "OLD Item" is NOT renamed and would be silently corrupted by a global replace.
+
+After all source fixes:
+
+    bench --site erp.jewonline.in clear-cache
+    # gunicorn HUP per Bench reload procedure
+
+Re-grep to verify all string literals are clean.
+
+### 5. Post-rename verification
+- Old name does not exist in `tabDocType`
+- New name exists, with `field_count`, `is_submittable`, `autoname`, `module`, `search_fields` all matching pre-rename
+- Zero remaining inbound Link refs to the old name (in `tabDocField` AND `tabCustom Field`)
+- Database table renamed (`tabOLD` gone, `tabNEW` exists)
+- Re-run the doctype's test suite under the new name
+- For submittable doctypes, exercise an amend flow as the canary for the self-reference fix correctness
+
+### 6. Renamed doctypes so far
+- Civil RA Bill → Work Order RA Bill (pilot, 2026-04-29, validated end-to-end including amend flow and full string-literal audit)
+
+Future renames: append with date and validation status.
+
 ## Git discipline
 - App folder is its own Git repo
 - Branch: main

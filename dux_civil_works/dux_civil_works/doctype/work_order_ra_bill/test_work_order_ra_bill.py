@@ -13,9 +13,9 @@ IGNORE_TEST_RECORD_DEPENDENCIES = []  # eg. ["User"]
 
 
 
-class IntegrationTestCivilRABill(IntegrationTestCase):
+class IntegrationTestWorkOrderRABill(IntegrationTestCase):
 	"""
-	Integration tests for CivilRABill.
+	Integration tests for WorkOrderRABill.
 	Use this class for testing interactions between multiple components.
 	"""
 

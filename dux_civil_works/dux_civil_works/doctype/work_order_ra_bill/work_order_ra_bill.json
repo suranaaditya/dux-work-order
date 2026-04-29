@@ -61,7 +61,7 @@
    "fieldtype": "Link",
    "label": "Amended From",
    "no_copy": 1,
-   "options": "Civil RA Bill",
+   "options": "Work Order RA Bill",
    "print_hide": 1,
    "read_only": 1,
    "search_index": 1
@@ -265,10 +265,10 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-29 01:20:42.857942",
+ "modified": "2026-04-29 08:42:18.899451",
  "modified_by": "Administrator",
  "module": "Dux Civil Works",
- "name": "Civil RA Bill",
+ "name": "Work Order RA Bill",
  "owner": "Administrator",
  "permissions": [
   {

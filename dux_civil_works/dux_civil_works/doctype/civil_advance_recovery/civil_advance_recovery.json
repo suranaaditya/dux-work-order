@@ -46,7 +46,7 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "RA Bill",
-   "options": "Civil RA Bill"
+   "options": "Work Order RA Bill"
   },
   {
    "columns": 2,
@@ -59,7 +59,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-04-29 01:07:47.510035",
+ "modified": "2026-04-29 08:26:36.759191",
  "modified_by": "Administrator",
  "module": "Dux Civil Works",
  "name": "Civil Advance Recovery",
