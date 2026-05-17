@@ -872,3 +872,96 @@ or console; not an app concern.
 
 The app does NOT ship these as fixtures - every site/company has its
 own values, and the app must not impose finance-master defaults.
+
+
+## Fixture auto-export gotcha
+
+`bench export-fixtures` re-writes DB records matching the hooks.py
+`fixtures` directive to disk, using Frappe's default `doctype_snake_case.json`
+naming - ignoring any custom filenames we've created. Our canonical fixture
+filenames use numeric prefixes (`01_`, `02_`, `03_`) to enforce alphabetical
+import order matching dependency order (UOM -> Item Group -> Item).
+
+Two non-obvious behaviors of auto-export:
+
+1. It writes ALL fields known to the doctype's meta, not just the fields
+   we care about. Produces 30-80x larger files than our minimalist
+   fixtures, and would clobber RGI's customizations to fields like UOM
+   symbol on subsequent migrates if accepted as authoritative.
+
+2. It accurately reflects DB state - including the absence of fields
+   that exist in our hand-written fixtures but not in the doctype's
+   meta. If you see a "missing field" in an auto-export, the field
+   probably never persisted in the first place (see "Phantom-field
+   gotcha" below).
+
+Mitigation: `.gitignore` lists the unprefixed names so accidental runs
+of export-fixtures don't pollute commits. If a NEW fixture type is
+added (e.g., `workflow.json`), extend `.gitignore` to include its
+unprefixed auto-export name.
+
+Workflow: prefer editing the prefixed JSON files (`01_*.json`,
+`02_*.json`, etc.) directly. Use auto-export at most as a reference for
+"what fields exist on this doctype" - never as the source of canonical
+fixture data.
+
+## Phantom-field gotcha in hand-written fixtures
+
+Frappe's fixture loader SILENTLY DROPS keys in the JSON that don't
+correspond to actual fields in the target doctype's meta. The record
+is created with the recognized fields; the unrecognized keys disappear
+without warning.
+
+This bit us once: `02_item_group.json` originally had a `description`
+field that Frappe accepted into the fixture but never persisted, because
+Item Group has no `description` field in its standard schema. The
+fixture LOOKED like it was doing something useful but was inert.
+
+Mitigation when authoring a new fixture:
+
+1. Before adding a field to a fixture JSON, verify the field exists on
+   the target doctype:
+
+       frappe.get_meta("Item Group").has_field("description")  # -> False
+
+2. Or check the doctype's JSON definition file directly:
+
+       ls /path/to/doctype/<doctype_snake>/<doctype_snake>.json
+
+   and grep for the fieldname in its `fields` array.
+
+3. After fixture import, verify with a direct DB query that the value
+   was actually stored - don't trust the fixture's intent.
+
+Place per-record documentation in CLAUDE.md or DESIGN.md, NOT in inert
+JSON fields.
+
+## Multi-app bench installed at erp.jewonline.in (informational)
+
+This bench has many apps installed alongside dux_civil_works. Observed
+list as of 2026-04-30:
+
+  frappe, erpnext, india_compliance, hrms, hrms_mobile, dux_portal,
+  dux_voucher, dux_groupview, dux_maintenance_master, hsc_master_inhouse,
+  hsc_master_np_ii, hsc_np, pipe_laying_inhouse, purchase_register,
+  rgi_migration, rgi_status, gh_raisoni_reports, jew_material_indent,
+  delivery_challan_custom, logbook, concrete_master, raven,
+  vehicle_inhouse, bank_statement_importer, frappe_er_generator
+
+Each may add `validate` / `before_insert` / `before_save` / `on_submit`
+hooks to standard doctypes (Item, Purchase Invoice, etc.). When a
+verification script fails with an unexpected error on standard doctype
+validation, one of these apps' hooks is a candidate cause - not
+necessarily our code.
+
+Known instance: `india_compliance` reads `gst_hsn_code` as an attribute
+on Item, causing `AttributeError` if absent (fixed in our Item fixtures
+by declaring `gst_hsn_code: ""`).
+
+Diagnostic approach when a standard-doctype validation surprises us:
+
+    frappe.get_hooks("doc_events")["Item"]
+    # lists all apps' Item hooks
+
+Inspect the offending app's handler at the path the hook reference
+points to.

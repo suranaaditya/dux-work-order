@@ -13,3 +13,11 @@ node_modules/
 .vscode/
 .idea/
 .DS_Store
+
+# Fixture auto-export (`bench export-fixtures`) writes files using Frappe's
+# default doctype_snake_case.json naming, ignoring our prefixed canonical
+# filenames. The unprefixed files duplicate the prefixed ones and would
+# dirty the tree. See CLAUDE.md "Fixture auto-export gotcha" for details.
+dux_civil_works/fixtures/uom.json
+dux_civil_works/fixtures/item_group.json
+dux_civil_works/fixtures/item.json

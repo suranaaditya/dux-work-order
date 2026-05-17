@@ -4,7 +4,6 @@
   "name": "Work Order Items",
   "item_group_name": "Work Order Items",
   "parent_item_group": "All Item Groups",
-  "is_group": 0,
-  "description": "Service items used as summary heads on Civil Work Orders. Each item represents a service category (Civil, Plumbing, Electrical, AMC, etc.). Detailed BOQ rows reference these items via the summary_head field. Seeded by dux_civil_works app — do not delete; rename only with caution as Civil Work Order summary_head Link filters reference this group name."
+  "is_group": 0
  }
 ]
