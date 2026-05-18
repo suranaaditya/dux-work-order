@@ -189,7 +189,7 @@
    "read_only": 1
   },
   {
-   "description": "Defaults are prefilled from Civil Works Settings on new WO creation. Override per contract as needed.",
+   "description": "Defaults are prefilled from Work Order Settings on new WO creation. Override per contract as needed. Explicit 0 is honored as 0 (not overwritten by defaults).",
    "fieldname": "section_terms",
    "fieldtype": "Section Break",
    "label": "Terms & Conditions"
@@ -311,7 +311,7 @@
    "label": "BOQ Details"
   },
   {
-   "description": "Detailed BOQ rows. When populated, summary_items is auto-computed (grouped by summary_head). Leave empty for old flow.",
+   "description": "Detailed BOQ rows. The Summary below is auto-computed (grouped by summary head, summed across amounts) \u2014 it is read-only and derived from these rows.",
    "fieldname": "boq_items",
    "fieldtype": "Table",
    "label": "BOQ Items",
@@ -322,7 +322,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-05-18 16:29:22.309570",
+ "modified": "2026-05-18 18:04:13.553639",
  "modified_by": "Administrator",
  "module": "Dux Work Orders",
  "name": "Work Order Contract",

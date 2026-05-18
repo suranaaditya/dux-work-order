@@ -24,18 +24,21 @@ frappe.ui.form.on("Work Order Contract", {
 		}));
 	},
 
-	refresh(frm) {
-		// On form load, make sure the summary reflects the current boq_items.
-		// Especially important for amended docs where the persisted summary
-		// could be a beat behind the BOQ.
-		rebuild_summary(frm);
-	},
-
 	boq_items_remove(frm) {
 		// Row removed from BOQ — re-aggregate.
 		rebuild_summary(frm);
 	},
 });
+
+// NOTE: there is intentionally no refresh() handler that rebuilds the
+// summary. The server controller already recomputes summary_items in
+// validate() on every save, so the persisted form state is always
+// correct. Rebuilding on refresh would call clear_table + add_child +
+// set_value, all of which mark the doc dirty — making the form appear
+// "Not Saved" immediately after a successful save and preventing the
+// primary button from transitioning Save → Submit. The on-edit handlers
+// above (estimated_qty, rate, summary_head, boq_items_remove) catch all
+// the cases that need a live rebuild.
 
 frappe.ui.form.on("Work Order BOQ Item", {
 	estimated_qty(frm, cdt, cdn) {

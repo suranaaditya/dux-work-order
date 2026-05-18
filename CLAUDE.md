@@ -1101,3 +1101,77 @@ Operational lesson:
 - After any DB-only metadata change, audit the JSON to confirm it
   matches. `grep -rn '"options": "Civil [A-Z]"' --include='*.json'`
   catches stale Link options after a rename.
+
+
+### Phase 1.5c.6 — gunicorn `--preload` requires USR2, not HUP
+
+This bench's gunicorn runs with the `--preload` flag (visible in
+`ps -ef | grep gunicorn`). Under `--preload`, the master process loads
+all Python code ONCE at startup, then forks workers which inherit the
+loaded code via copy-on-write. Consequences:
+
+- `kill -HUP <master>` graceful-respawns workers, but they fork from
+  the SAME master that already loaded stale code. New workers run old
+  code. The "Bench reload procedure" section above understates this:
+  HUP alone is NOT sufficient for controller (.py) changes on this
+  bench.
+- The fix: `kill -USR2 <master>` triggers gunicorn's graceful re-exec.
+  A new master process is forked which re-reads code from disk, and it
+  spawns its own fresh workers. The old master + workers continue
+  serving until you retire them with `kill -WINCH <old_master>` (stop
+  accepting new requests) then `kill -QUIT <old_master>` (graceful
+  shutdown).
+
+Canonical sequence for a controller change:
+
+    # 1) Edit controller .py
+    # 2) Push to bench
+    # 3) Hard refresh / restart bytecode:
+    bench --site erp.jewonline.in clear-cache
+    # 4) Re-exec the master (NOT just HUP):
+    OLD_MASTER=$(pgrep -of "gunicorn:.*--preload")
+    kill -USR2 $OLD_MASTER
+    sleep 5
+    # 5) Verify a new master exists (`ps -eo pid,lstart,args`) — it'll
+    #    have a later start time than $OLD_MASTER.
+    # 6) Retire the old master:
+    kill -WINCH $OLD_MASTER && sleep 3 && kill -QUIT $OLD_MASTER
+
+Symptom that indicates this bug bit you: you edited a controller, you
+ran HUP, smoke test in `bench console` passed (because console loads
+fresh code each invocation), but Desk users still hit the old behaviour.
+The .py mtime is newer than `lstart` of the gunicorn master — that's
+the smoking gun.
+
+This trapped us once in Phase 1.5c.5 (retention 100/0 still throwing
+"150%" despite the fix landing). Documented now so it doesn't repeat.
+
+
+### Phase 1.5c.6 — client-side rebuild_summary on refresh marks form dirty
+
+When wiring live-update JS handlers on a form that mirror what the
+server controller does in validate(), DO NOT trigger them from the
+`refresh(frm)` event handler. Frappe fires `refresh` immediately after
+a successful save, before the user sees the saved state. A handler
+that calls `frm.clear_table(...)`, `frm.add_child(...)`, or
+`frm.set_value(...)` on refresh re-marks the doc dirty via
+`__unsaved = 1`, even when the persisted values are already correct.
+
+Symptoms:
+- The status badge near the title stays on "Not Saved" / never shows
+  "Draft" or "Submitted" cleanly.
+- The primary button at top-right stays on "Save" and never transitions
+  to "Submit" (the Submit button is hidden because Frappe thinks there
+  are unsaved changes).
+- "Submit this document to confirm" link remains visible as Frappe's
+  fallback recovery path; `cur_frm.savesubmit()` works via JS even
+  though no Submit button is visible.
+
+Fix pattern: wire the live updates ONLY to user-edit events
+(field-level handlers like `estimated_qty`, `rate`, `summary_head`,
+plus parent-level `<childtable>_remove`). Skip `refresh` entirely —
+the server controller already persists the correct state, and on form
+load the server-provided values are the source of truth.
+
+Trapped us in Phase 1.5c.4 → 1.5c.6 (live BOQ aggregation worked but
+made every saved doc appear "Not Saved").
