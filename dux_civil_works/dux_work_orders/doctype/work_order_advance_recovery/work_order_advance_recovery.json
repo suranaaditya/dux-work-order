@@ -1,0 +1,73 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-04-29 01:07:47.510035",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "recovery_date",
+  "advance_type",
+  "amount",
+  "ra_bill",
+  "remarks"
+ ],
+ "fields": [
+  {
+   "columns": 2,
+   "fieldname": "recovery_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Date",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "advance_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Advance Type",
+   "options": "Mobilization\nMaterial",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Amount Recovered",
+   "options": "company_currency",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "description": "RA Bill on which this recovery was made. Populated by Step 5b RA Bill submit hook.",
+   "fieldname": "ra_bill",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "RA Bill",
+   "options": "Work Order RA Bill"
+  },
+  {
+   "columns": 2,
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-04-29 08:26:36.759191",
+ "modified_by": "Administrator",
+ "module": "Dux Work Orders",
+ "name": "Work Order Advance Recovery",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

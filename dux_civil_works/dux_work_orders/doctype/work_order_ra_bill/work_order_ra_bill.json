@@ -1,0 +1,298 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-04-29 01:07:13.973079",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "civil_work_order",
+  "amended_from",
+  "bill_date",
+  "bill_number",
+  "is_final_bill",
+  "cb_header_1",
+  "period_from",
+  "period_to",
+  "section_wo_info",
+  "company",
+  "supplier",
+  "cb_woinfo_1",
+  "project",
+  "work_title",
+  "section_boq_ref",
+  "civil_work_order_boq",
+  "section_items",
+  "items",
+  "section_totals",
+  "gross_this_bill",
+  "total_deductions",
+  "cb_totals_1",
+  "total_additions",
+  "net_payable",
+  "section_deductions",
+  "deductions",
+  "section_invoicing",
+  "invoiced_amount",
+  "per_invoiced",
+  "cb_invoicing_1",
+  "billing_status"
+ ],
+ "fields": [
+  {
+   "default": "RA-.YYYY.-.####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "RA-.YYYY.-.####",
+   "reqd": 1
+  },
+  {
+   "fieldname": "civil_work_order",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Civil Work Order",
+   "options": "Work Order Contract",
+   "reqd": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Work Order RA Bill",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "default": "Today",
+   "fieldname": "bill_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Bill Date",
+   "reqd": 1
+  },
+  {
+   "description": "Sequential per Work Order. 1 = 1st RA, 2 = 2nd RA, etc. Final Bill is a separate doctype (Phase 3).",
+   "fieldname": "bill_number",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Bill Number",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "description": "Phase 1: leave unchecked. Final Bill closure logic ships in Phase 3.",
+   "fieldname": "is_final_bill",
+   "fieldtype": "Check",
+   "label": "Is Final Bill"
+  },
+  {
+   "fieldname": "cb_header_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "period_from",
+   "fieldtype": "Date",
+   "label": "Period From"
+  },
+  {
+   "fieldname": "period_to",
+   "fieldtype": "Date",
+   "label": "Period To"
+  },
+  {
+   "collapsible": 1,
+   "collapsible_depends_on": "1",
+   "fieldname": "section_wo_info",
+   "fieldtype": "Section Break",
+   "label": "Work Order Reference"
+  },
+  {
+   "fetch_from": "civil_work_order.company",
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "civil_work_order.supplier",
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Contractor",
+   "options": "Supplier",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb_woinfo_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "civil_work_order.project",
+   "fieldname": "project",
+   "fieldtype": "Link",
+   "label": "Project",
+   "options": "Project",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "civil_work_order.work_title",
+   "fieldname": "work_title",
+   "fieldtype": "Data",
+   "label": "Work Title",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_boq_ref",
+   "fieldtype": "Section Break",
+   "label": "BOQ Reference"
+  },
+  {
+   "description": "Submitted BOQ for the linked Work Order. Items are auto-populated from this BOQ on first save.",
+   "fieldname": "civil_work_order_boq",
+   "fieldtype": "Link",
+   "label": "BOQ Document",
+   "options": "Civil Work Order BOQ",
+   "reqd": 1
+  },
+  {
+   "description": "All BOQ items are auto-populated. Enter the cumulative qty done as of this bill. Lines with zero cumulative qty roll forward unchanged.",
+   "fieldname": "section_items",
+   "fieldtype": "Section Break",
+   "label": "Bill Items"
+  },
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "RA Bill Items",
+   "options": "Work Order RA Bill Item"
+  },
+  {
+   "fieldname": "section_totals",
+   "fieldtype": "Section Break",
+   "label": "Totals"
+  },
+  {
+   "fieldname": "gross_this_bill",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Gross This Bill",
+   "options": "company_currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_deductions",
+   "fieldtype": "Currency",
+   "label": "Total Deductions",
+   "options": "company_currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb_totals_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_additions",
+   "fieldtype": "Currency",
+   "label": "Total Additions",
+   "options": "company_currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "net_payable",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Net Payable",
+   "options": "company_currency",
+   "read_only": 1
+  },
+  {
+   "description": "Auto-suggested rows are computed from WO terms on save (retention, mob/mat recovery, cess). All rows are fully editable - adjust amounts, change GL accounts, delete rows, or add manual rows (penalty, escalation, other).",
+   "fieldname": "section_deductions",
+   "fieldtype": "Section Break",
+   "label": "Deductions and Additions"
+  },
+  {
+   "fieldname": "deductions",
+   "fieldtype": "Table",
+   "label": "Deduction/Addition Rows",
+   "options": "Work Order RA Bill Deduction"
+  },
+  {
+   "collapsible": 1,
+   "description": "Tracks how much of this RA Bill has been invoiced via Purchase Invoices. Dormant in Phase 1 - activated by Step 6 Purchase Invoice integration.",
+   "fieldname": "section_invoicing",
+   "fieldtype": "Section Break",
+   "label": "Invoicing Status"
+  },
+  {
+   "default": "0",
+   "fieldname": "invoiced_amount",
+   "fieldtype": "Currency",
+   "label": "Invoiced Amount",
+   "options": "company_currency",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "per_invoiced",
+   "fieldtype": "Percent",
+   "label": "Per Invoiced",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb_invoicing_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Draft",
+   "fieldname": "billing_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Billing Status",
+   "options": "Draft\nPending Approval\nSubmitted\nPartially Invoiced\nFully Invoiced\nClosed\nCancelled",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-05-18 11:04:01.769885",
+ "modified_by": "Administrator",
+ "module": "Dux Work Orders",
+ "name": "Work Order RA Bill",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "search_fields": "civil_work_order,supplier,company,bill_number",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "work_title",
+ "track_changes": 1
+}

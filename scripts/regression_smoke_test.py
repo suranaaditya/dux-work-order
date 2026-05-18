@@ -1,5 +1,5 @@
 # Copyright (c) 2026, Dutch Digitech and contributors
-# Phase 1 regression smoke test - exercises Civil Work Order, BOQ,
+# Phase 1 regression smoke test - exercises Work Order Contract, BOQ,
 # Advance Register, and Work Order RA Bill end-to-end.
 #
 # Invoke via:
@@ -47,11 +47,11 @@ def run_smoke_test():
 
 	try:
 		# ============================================================
-		# PHASE 1 - Civil Work Order
+		# PHASE 1 - Work Order Contract
 		# ============================================================
-		print("--- Civil Work Order ---")
+		print("--- Work Order Contract ---")
 
-		wo = frappe.new_doc("Civil Work Order")
+		wo = frappe.new_doc("Work Order Contract")
 		wo.company = sample_company
 		wo.supplier = sample_supplier
 		wo.wo_date = frappe.utils.today()
@@ -63,7 +63,7 @@ def run_smoke_test():
 		wo.material_recovery_pct = 0
 		wo.apply_labour_cess = 0
 		wo.insert()
-		created_docs.append(("Civil Work Order", wo.name))
+		created_docs.append(("Work Order Contract", wo.name))
 		print("  Created: " + wo.name + " | total: " + str(wo.total_amount))
 		assert abs(wo.total_amount - 1000000) < 0.01, "Total auto-calc broken"
 		assert wo.name.startswith("WO-"), "Naming series broken"
@@ -129,11 +129,11 @@ def run_smoke_test():
 		print("  Submitted: " + boq.name)
 
 		# ============================================================
-		# PHASE 3 - Civil Advance Register
+		# PHASE 3 - Work Order Advance Register
 		# ============================================================
-		print("\n--- Civil Advance Register ---")
+		print("\n--- Work Order Advance Register ---")
 
-		reg = frappe.new_doc("Civil Advance Register")
+		reg = frappe.new_doc("Work Order Advance Register")
 		reg.civil_work_order = wo.name
 		reg.append("tranches", {
 			"tranche_date": frappe.utils.today(),
@@ -141,12 +141,12 @@ def run_smoke_test():
 			"amount": 100000,
 		})
 		reg.insert()
-		created_docs.append(("Civil Advance Register", reg.name))
+		created_docs.append(("Work Order Advance Register", reg.name))
 		print("  Created: " + reg.name + " | mob outstanding: " + str(reg.mobilization_outstanding))
 		assert abs(reg.mobilization_outstanding - 100000) < 0.01
 
 		# Helper functions
-		from dux_civil_works.dux_civil_works.doctype.civil_advance_register.civil_advance_register import (
+		from dux_civil_works.dux_work_orders.doctype.work_order_advance_register.work_order_advance_register import (
 			get_or_create_register, get_outstanding_balance,
 		)
 		found = get_or_create_register(wo.name)

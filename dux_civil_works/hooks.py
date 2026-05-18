@@ -1,7 +1,7 @@
 app_name = "dux_civil_works"
-app_title = "Dux Civil Works"
+app_title = "Dux Work Orders"
 app_publisher = "Dutch Digitech"
-app_description = "Civil works contract management — Work Orders, BOQ, RA Bills, integrated with ERPNext"
+app_description = "Work order contract management — BOQ, RA Bills, advances, PI integration with ERPNext"
 app_email = "aditya.surana@duxdigitech.in"
 app_license = "mit"
 
@@ -293,8 +293,8 @@ doctype_js = {
 # Server-side hooks for Purchase Invoice <-> Work Order RA Bill linkage
 doc_events = {
     "Purchase Invoice": {
-        "validate": "dux_civil_works.dux_civil_works.api.purchase_invoice_hooks.pi_validate",
-        "on_submit": "dux_civil_works.dux_civil_works.api.purchase_invoice_hooks.pi_on_submit",
-        "on_cancel": "dux_civil_works.dux_civil_works.api.purchase_invoice_hooks.pi_on_cancel",
+        "validate": "dux_civil_works.dux_work_orders.api.purchase_invoice_hooks.pi_validate",
+        "on_submit": "dux_civil_works.dux_work_orders.api.purchase_invoice_hooks.pi_on_submit",
+        "on_cancel": "dux_civil_works.dux_work_orders.api.purchase_invoice_hooks.pi_on_cancel",
     },
 }

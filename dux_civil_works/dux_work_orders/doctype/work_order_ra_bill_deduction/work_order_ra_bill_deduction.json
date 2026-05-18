@@ -1,0 +1,76 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-04-29 01:19:19.495423",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "nature",
+  "description",
+  "amount",
+  "gl_account",
+  "is_auto_suggested"
+ ],
+ "fields": [
+  {
+   "columns": 2,
+   "description": "Retention/Mob/Mat/TDS/Cess/Penalty/Other Deduction reduce net payable. Price Escalation/Other Addition increase it.",
+   "fieldname": "nature",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Nature",
+   "options": "Retention\nMobilization Recovery\nMaterial Recovery\nTDS\nLabour Cess\nPenalty\nOther Deduction\nPrice Escalation\nOther Addition",
+   "reqd": 1
+  },
+  {
+   "columns": 3,
+   "fieldname": "description",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Description"
+  },
+  {
+   "columns": 2,
+   "description": "Always entered as a positive number. Sign is implied by the nature.",
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Amount",
+   "options": "company_currency",
+   "reqd": 1
+  },
+  {
+   "columns": 3,
+   "description": "Auto-populated from Civil Works Settings - Company Accounts where applicable. User can override.",
+   "fieldname": "gl_account",
+   "fieldtype": "Link",
+   "label": "GL Account",
+   "options": "Account"
+  },
+  {
+   "columns": 1,
+   "default": "0",
+   "description": "Marks rows that were auto-suggested from WO terms. Informational only - does not restrict editing.",
+   "fieldname": "is_auto_suggested",
+   "fieldtype": "Check",
+   "label": "Auto",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-04-29 01:19:19.495423",
+ "modified_by": "Administrator",
+ "module": "Dux Work Orders",
+ "name": "Work Order RA Bill Deduction",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

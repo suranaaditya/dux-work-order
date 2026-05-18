@@ -4,8 +4,8 @@ This file is persistent memory for all future work on this app. Read it at the s
 
 ## App identity
 - App name: dux_civil_works
-- Module: Dux Civil Works
-- DocType prefix: `Civil` (e.g., Civil Work Order, Civil RA Bill, Civil BOQ Item)
+- Module: Dux Work Orders
+- DocType prefix: `Work Order` (post-Phase-1.5b rename pass; e.g., Work Order Contract, Work Order RA Bill, Work Order BOQ Item)
 - Publisher: Dutch Digitech
 - Purpose: civil works contract management; reusable beyond RGI
 
@@ -54,7 +54,7 @@ This file is persistent memory for all future work on this app. Read it at the s
      bench --site erp.jewonline.in console < /tmp/<descriptive_name>.py
 3. Verify the files Frappe generated in the app folder. The real path includes
    THREE levels of dux_civil_works nesting:
-     apps/dux_civil_works/dux_civil_works/dux_civil_works/<artifact_type>/<artifact_name>/
+     apps/dux_civil_works/dux_civil_works/dux_work_orders/<artifact_type>/<artifact_name>/
    This is expected: app folder → app package → module folder, where module name
    happens to equal app name.
 
@@ -62,7 +62,7 @@ This file is persistent memory for all future work on this app. Read it at the s
    - Parent / standalone DocType (any non-istable doctype, e.g. `is_submittable: 1`
      or a Single): Frappe writes `__init__.py`, `<name>.json`, `<name>.py`,
      `<name>.js`, AND `test_<name>.py`.
-   - Child table (`istable: 1`, e.g. Civil Work Order Summary Item): Frappe
+   - Child table (`istable: 1`, e.g. Work Order Summary Item): Frappe
      writes `__init__.py`, `<name>.json`, `<name>.py` only. NO `.js` (child
      tables have no standalone client form) and NO `test_<name>.py` stub. This
      is standard Frappe behaviour, not a missing artifact — verification scripts
@@ -184,7 +184,7 @@ The pattern we use:
    satisfy `frappe.db.exists("DocType", "X")`.
 2. Create the doctype that links to it (now passes v16 validation).
 3. In a later step, EXTEND the stub with its real schema using the same
-   field-append pattern Pre-Step 5a used for Civil Works Settings:
+   field-append pattern Pre-Step 5a used for Work Order Settings:
      doc = frappe.get_doc("DocType", "X")
      existing = {f.fieldname for f in doc.fields}
      for fdef in NEW_FIELDS:
@@ -233,7 +233,7 @@ out a pure helper:
     def on_submit(self):
         self.db_set("status", self._compute_status(), update_modified=False)
 
-This was the pattern adopted in Civil RA Bill controller during Step 5b.
+This was the pattern adopted in Work Order RA Bill controller during Step 5b.
 
 ### TimestampMismatch after failed submit
 
@@ -341,6 +341,29 @@ Re-grep to verify all string literals are clean.
 
 ### 6. Renamed doctypes so far
 - Civil RA Bill → Work Order RA Bill (pilot, 2026-04-29, validated end-to-end including amend flow and full string-literal audit)
+- Phase 1.5b consolidated rename pass (2026-05-18), all validated end-to-end via regression smoke test including amend canary:
+  - Civil Works Settings → Work Order Settings
+  - Civil Works Company Account → Work Order Company Account
+  - Civil Work Order → Work Order Contract
+  - Civil Work Order Summary Item → Work Order Summary Item
+  - Civil BOQ Item → Work Order BOQ Item
+  - Civil Advance Register → Work Order Advance Register
+  - Civil Advance Tranche → Work Order Advance Tranche
+  - Civil Advance Recovery → Work Order Advance Recovery
+  - Civil RA Bill Item → Work Order RA Bill Item
+  - Civil RA Bill Deduction → Work Order RA Bill Deduction
+  - Module: Dux Civil Works → Dux Work Orders (and inner package folder
+    `dux_civil_works/dux_civil_works/` renamed to `dux_civil_works/dux_work_orders/`;
+    app folder `dux_civil_works` intentionally unchanged)
+  - 6 PI custom fields re-attributed to module Dux Work Orders (previously
+    had module=NULL from earlier creation)
+- Civil Work Order BOQ: intentionally NOT renamed in 1.5b — slated for
+  deletion in Phase 1.5c when BOQ rows fold into Work Order Contract.
+
+Note: Frappe v16's `rename_doc` auto-handled the `amended_from` self-reference
+on Work Order Contract — no manual self-ref fix was required this time
+(vs the pilot rename, which needed an explicit options-rewrite step).
+This suggests v16 closed the self-ref gap that the pilot worked around.
 
 Future renames: append with date and validation status.
 
@@ -352,29 +375,29 @@ Future renames: append with date and validation status.
 
 ## Naming conventions
 - File names: snake_case
-- DocType names: Title Case with `Civil` prefix
+- DocType names: Title Case with `Work Order` prefix
 - Field names: snake_case
-- Module: Dux Civil Works
+- Module: Dux Work Orders
 
-## DEFERRED: Payment Voucher integration for Civil Works Advances (REQUIRED before go-live)
+## DEFERRED: Payment Voucher integration for Work Order Advances (REQUIRED before go-live)
 
 RGI uses a custom doctype `Payment Voucher` (from the dux_voucher app) as
-the primary outflow document. Civil Works Advances paid to contractors flow
+the primary outflow document. Work Order Advances paid to contractors flow
 through Payment Voucher, NOT through standard ERPNext Payment Entry.
 
-The Civil Advance Register (Step 5a) currently relies on MANUAL entry of
+The Work Order Advance Register (Step 5a) currently relies on MANUAL entry of
 tranche rows. Before this app is considered production-ready, we must wire
 the following:
 
 1. Add custom fields to Payment Voucher:
    - is_civil_works_advance (Check)
    - civil_advance_type (Select: Mobilization, Material) — visible if checked
-   - civil_work_order (Link: Civil Work Order) — visible if checked
+   - civil_work_order (Link: Work Order Contract) — visible if checked
 2. Add hooks in dux_civil_works/hooks.py for Payment Voucher:
-   - on_submit: find or create Civil Advance Register for the WO,
+   - on_submit: find or create Work Order Advance Register for the WO,
      append a Tranche row linked to this Payment Voucher
    - on_cancel: remove the matching Tranche row
-3. The `payment_entry` field on Civil Advance Tranche may need to be
+3. The `payment_entry` field on Work Order Advance Tranche may need to be
    renamed/repurposed to reference Payment Voucher instead — design TBD
    when this work is picked up. Either:
      (a) Rename the field to `source_voucher` with a Dynamic Link
@@ -422,13 +445,13 @@ Reasons for choosing Model A over auto-creation:
   multiple MB periods
 - Matches Indian CPWD/PWD practice
 
-### Per-WO toggle: `use_measurement_book` (Check, on Civil Work Order)
+### Per-WO toggle: `use_measurement_book` (Check, on Work Order Contract)
 
 Not every WO will use MB. Smaller renovations (toilet block, badminton
 court) don't justify the overhead; larger projects (new hostel, academic
 block) benefit from it.
 
-- Civil Work Order gets a new field `use_measurement_book` (Check, default
+- Work Order Contract gets a new field `use_measurement_book` (Check, default
   off) added in Phase 2.
 - If ON: RA Bills for this WO pull cumulative_qty from MB. The cumulative_qty
   field on RA Bill Item becomes read-only (or shown as "MB measured: X" with
@@ -437,12 +460,12 @@ block) benefit from it.
   behavior). MB is not consulted.
 
 Implementation impact on Phase 1 code:
-- Civil RA Bill controller's `populate_items_from_boq` gains a branch:
+- Work Order RA Bill controller's `populate_items_from_boq` gains a branch:
     if wo.use_measurement_book:
         cumulative_qty = sum_mb_entries_for_boq_item(boq_item, up_to=bill_date)
     else:
         cumulative_qty = previous_cumulative_qty   # user enters manually
-- Civil RA Bill before_submit gets a new validation:
+- Work Order RA Bill before_submit gets a new validation:
     if wo.use_measurement_book:
         for each item: assert cumulative_qty <= MB sum for that BOQ item
 - A "Refresh from MB" button on draft RA Bills, for WOs with toggle on.
@@ -473,7 +496,7 @@ LAYER 2 (page 2 onwards) — Detail view, engineering-level
   use to verify work and bill against
 
 This pattern applies consistently across:
-- Civil Work Order printout
+- Work Order Contract printout
 - Civil Work Order BOQ printout (if printed standalone)
 - Work Order RA Bill printout (summary deductions on page 1, detailed
   measurements on page 2+)
@@ -488,10 +511,10 @@ not invented per-document.
 ## Phasing context (informational, do not act on this now)
 The build will proceed in numbered steps:
 - Step 1 (this one): app scaffold + memory
-- Step 2: Civil Works Settings (single doctype with defaults)
-- Step 3: Civil Work Order + Summary Item child + Terms section
-- Step 4: Civil Work Order BOQ + BOQ Item child
-- Step 5: Civil RA Bill + RA Bill Item + RA Bill Deduction
+- Step 2: Work Order Settings (single doctype with defaults)
+- Step 3: Work Order Contract + Summary Item child + Terms section
+- Step 4: Civil Work Order BOQ + Work Order BOQ Item child
+- Step 5: Work Order RA Bill + Work Order RA Bill Item + Work Order RA Bill Deduction
 - Step 6: Purchase Invoice integration (Get Items From RA Bill button)
 - Later: Amendments, Measurement Book, Final Bill, DLP, FIM, reports
 
@@ -631,7 +654,7 @@ Why these are app-shipped (vs user-curated):
   If the group is missing or renamed, the app breaks. Always-present
   via fixture is the safest design.
 
-- Items: serve as summary_head values on Civil Work Orders. Their key
+- Items: serve as summary_head values on Work Order Contracts. Their key
   attributes (item_group, stock_uom, is_stock_item, is_purchase_item,
   is_sales_item) are app-correctness invariants — fixtures enforce them
   on every migrate. RGI can edit description, default_warehouse,
@@ -679,14 +702,14 @@ mark `disabled: 1` in the fixture file itself.
 The summary_head field on three doctypes is a Link to Item, filtered to
 Item Group 'Work Order Items':
 
-- Civil Work Order Summary Item.summary_head
-- Civil BOQ Item.summary_head
-- Civil RA Bill Item.summary_head
+- Work Order Summary Item.summary_head
+- Work Order BOQ Item.summary_head
+- Work Order RA Bill Item.summary_head
 
 Validation: each value must (a) exist in the Item master, (b) be in the
 'Work Order Items' Item Group, (c) not be disabled. Enforced in:
 
-- Civil Work Order controller validate() — direct check on Summary Items
+- Work Order Contract controller validate() — direct check on Summary Items
   (`validate_summary_items_are_service_items`)
 - Civil Work Order BOQ controller validate() — direct check on BOQ rows
   (`validate_boq_summary_heads_are_service_items`) AND existing
@@ -701,10 +724,10 @@ bypassed.
 
 Client-side picker filtering (set_query) is wired in:
 
-- civil_work_order.js — `frm.set_query("summary_head", "summary_items", ...)`
+- work_order_contract.js — `frm.set_query("summary_head", "summary_items", ...)`
 - civil_work_order_boq.js — `frm.set_query("summary_head", "boq_items", ...)`
 
-Civil RA Bill Item has no `.js` set_query because RA Bill Items are
+Work Order RA Bill Item has no `.js` set_query because RA Bill Items are
 auto-populated from BOQ; user does not pick summary_head directly on
 the RA Bill form.
 
@@ -743,11 +766,11 @@ OR from inside console:
 
 Exercises Phase 1 end-to-end:
 
-- Civil Work Order create, total auto-calc, retention split validation,
+- Work Order Contract create, total auto-calc, retention split validation,
   naming series, submit
 - Civil Work Order BOQ create, line-amount auto-calc, total reconciliation,
   cross-WO summary-head validation, submit
-- Civil Advance Register create, tranche entry, balance computation,
+- Work Order Advance Register create, tranche entry, balance computation,
   module-level helpers (`get_or_create_register`, `get_outstanding_balance`)
 - Work Order RA Bill create, auto-populate from BOQ, cumulative-qty entry,
   auto-deductions (retention, mobilization recovery), net payable, submit
@@ -827,7 +850,7 @@ Earlier `## Static asset path convention` section noted that `public/`
 lives at the 2-level path. The `api/` folder is DIFFERENT - it lives at
 the THREE-level path:
 
-    apps/dux_civil_works/dux_civil_works/dux_civil_works/api/
+    apps/dux_civil_works/dux_civil_works/dux_work_orders/api/
 
 Same level as `doctype/`, `report/`, `print_format/`. Module-scoped Python
 code is 3-levels-deep. Only `public/` (static assets) is at the 2-level

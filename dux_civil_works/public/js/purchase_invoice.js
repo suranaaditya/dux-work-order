@@ -24,7 +24,7 @@ frappe.ui.form.on("Purchase Invoice", {
 
 function show_ra_bill_picker(frm) {
 	frappe.call({
-		method: "dux_civil_works.dux_civil_works.api.purchase_invoice.get_open_ra_bills",
+		method: "dux_civil_works.dux_work_orders.api.purchase_invoice.get_open_ra_bills",
 		args: {
 			company: frm.doc.company,
 			supplier: frm.doc.supplier,
@@ -92,7 +92,7 @@ function show_ra_bill_picker(frm) {
 
 function fetch_items_into_pi(frm, ra_bill_names) {
 	frappe.call({
-		method: "dux_civil_works.dux_civil_works.api.purchase_invoice.get_items_from_ra_bills",
+		method: "dux_civil_works.dux_work_orders.api.purchase_invoice.get_items_from_ra_bills",
 		args: { ra_bill_names: JSON.stringify(ra_bill_names) },
 		freeze: true,
 		freeze_message: __("Fetching items from RA Bills..."),
@@ -132,7 +132,7 @@ function populate_items(frm, items) {
 function update_referenced_ra_bills(frm) {
 	if (!frm.doc.is_wo_ra_bill_invoice || !frm.doc.name) return;
 	frappe.call({
-		method: "dux_civil_works.dux_civil_works.api.purchase_invoice.get_referenced_ra_bills_summary",
+		method: "dux_civil_works.dux_work_orders.api.purchase_invoice.get_referenced_ra_bills_summary",
 		args: { pi_name: frm.doc.name },
 		callback(r) {
 			const rows = r.message || [];
