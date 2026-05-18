@@ -204,8 +204,18 @@ class WorkOrderContract(Document):
 			"tds_category": "default_tds_category",
 		}
 		for wo_field, settings_field in mapping.items():
-			# Only prefill if the WO field isn't already set (respect explicit user input)
-			if not self.get(wo_field):
+			# Only prefill if the user genuinely didn't provide a value.
+			# CRITICAL: use `is None`/empty-string discriminator, NOT a truthy
+			# check. An explicit 0 on a Percent/Int field is a valid user
+			# choice (e.g. "no retention", "release nothing after DLP",
+			# "0 month DLP") and MUST be respected. The earlier `if not X`
+			# pattern silently overwrote explicit 0s with Settings defaults
+			# — same family of bug as the deviation_limit_pct=0 issue fixed
+			# in 1.5c.2. See CLAUDE.md "Phase 1.5b execution — additional
+			# Frappe learnings" for the broader pattern.
+			current = self.get(wo_field)
+			is_unset = current is None or current == ""
+			if is_unset:
 				value = settings.get(settings_field)
 				if value is not None:
 					self.set(wo_field, value)

@@ -117,6 +117,36 @@ def run_smoke_test():
 		assert wo.boq_items[0].deviation_limit_pct == 0, "Explicit 0 not preserved: " + str(wo.boq_items[0].deviation_limit_pct)
 		print("  deviation_limit_pct=0 preserved (no truthy-fallback bug)")
 
+		# Explicit 0 on retention_release_after_dlp must survive prefill_terms_from_settings
+		# (regression canary for the 1.5c.5 bug: truthy check overwriting explicit 0).
+		# This works on the already-inserted wo (prefill ran in before_insert; only an
+		# update path now).
+		wo.retention_release_on_final_bill = 100
+		wo.retention_release_after_dlp = 0
+		wo.save()
+		wo.reload()
+		assert wo.retention_release_on_final_bill == 100, "100 release not preserved"
+		assert wo.retention_release_after_dlp == 0, "Explicit 0 release was overwritten: " + str(wo.retention_release_after_dlp)
+		print("  retention_release_after_dlp=0 preserved (no truthy-fallback bug)")
+
+		# Fresh WO without any release values: prefill must populate them from Settings.
+		# Inline mini-canary — create, verify defaults, delete.
+		wo_default = frappe.new_doc("Work Order Contract")
+		wo_default.company = sample_company
+		wo_default.supplier = sample_supplier
+		wo_default.wo_date = frappe.utils.today()
+		wo_default.work_title = "Smoke test prefill canary - delete"
+		wo_default.append("boq_items", {
+			"item_no": "x", "summary_head": HEAD_CIVIL,
+			"description": "x", "uom": UOM_VOLUME,
+			"estimated_qty": 1, "rate": 1,
+		})
+		wo_default.insert()
+		created_docs.append(("Work Order Contract", wo_default.name))
+		sum_default = (wo_default.retention_release_on_final_bill or 0) + (wo_default.retention_release_after_dlp or 0)
+		assert abs(sum_default - 100) < 0.01, "Settings prefill broken; sum=" + str(sum_default)
+		print("  prefill_terms_from_settings still applies for blank values (sum=" + str(sum_default) + ")")
+
 		wo.submit()
 		print("  Submitted: " + wo.name)
 
