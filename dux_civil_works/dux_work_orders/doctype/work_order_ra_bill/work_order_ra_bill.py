@@ -21,7 +21,7 @@ class WorkOrderRABill(Document):
 		self.populate_items_from_boq()
 
 	def validate(self):
-		self.validate_wo_and_boq_consistency()
+		self.validate_wo_consistency()
 		self.validate_period_dates()
 		self.compute_per_line_quantities()
 		self.compute_gross_this_bill()
@@ -61,22 +61,28 @@ class WorkOrderRABill(Document):
 		self.bill_number = (prior or 0) + 1
 
 	def populate_items_from_boq(self):
-		if not self.civil_work_order_boq:
+		"""Populate RA Bill items by reading BOQ rows directly from the
+		parent Work Order Contract's embedded boq_items child table.
+
+		Phase 1.5c.2: there is no longer a separate BOQ document; BOQ
+		rows live on the Work Order Contract."""
+		if not self.civil_work_order:
 			return
 		if self.items:
 			return
 
-		boq_items = frappe.get_all(
-			"Work Order BOQ Item",
-			filters={"parent": self.civil_work_order_boq},
-			fields=["name", "item_no", "summary_head", "description", "uom",
-					"estimated_qty", "rate", "deviation_limit_pct"],
-			order_by="idx asc",
-		)
-		for boq in boq_items:
-			prev_cum = self._get_previous_cumulative_qty(boq.name)
+		wo = frappe.get_doc("Work Order Contract", self.civil_work_order)
+		if not wo.boq_items:
+			frappe.throw(_(
+				"Work Order Contract {0} has no BOQ items. "
+				"Add BOQ rows to the Work Order before creating a Running Account Bill."
+			).format(wo.name))
+
+		for boq in wo.boq_items:
+			prev_cum = self._get_previous_cumulative_qty(boq.boq_row_uid)
 			self.append("items", {
 				"boq_item_ref": boq.name,
+				"boq_row_uid": boq.boq_row_uid,
 				"item_no": boq.item_no,
 				"summary_head": boq.summary_head,
 				"description": boq.description,
@@ -90,26 +96,35 @@ class WorkOrderRABill(Document):
 				"this_bill_amount": 0,
 			})
 
-	def _get_previous_cumulative_qty(self, boq_item_name):
-		if not self.civil_work_order:
+	def _get_previous_cumulative_qty(self, boq_row_uid):
+		"""Look up the most recent submitted cumulative_qty for the same
+		logical BOQ row on the same Work Order. Matches on boq_row_uid
+		(stable across WO amendments) rather than the row's child-table
+		name (which changes on amendment)."""
+		if not boq_row_uid or not self.civil_work_order:
 			return 0
 		result = frappe.db.sql("""
 			SELECT IFNULL(MAX(rb_item.cumulative_qty), 0) AS qty
 			FROM `tabWork Order RA Bill Item` rb_item
 			INNER JOIN `tabWork Order RA Bill` rb ON rb.name = rb_item.parent
-			WHERE rb_item.boq_item_ref = %s
+			WHERE rb_item.boq_row_uid = %s
 			  AND rb.civil_work_order = %s
 			  AND rb.docstatus = 1
 			  AND rb.name != %s
-		""", (boq_item_name, self.civil_work_order, self.name or ""), as_dict=True)
+		""", (boq_row_uid, self.civil_work_order, self.name or ""), as_dict=True)
 		return float(result[0].qty if result else 0)
 
 	# ============================================================
 	# validate helpers
 	# ============================================================
 
-	def validate_wo_and_boq_consistency(self):
-		if not (self.civil_work_order and self.civil_work_order_boq):
+	def validate_wo_consistency(self):
+		"""Linked Work Order Contract must exist and be Submitted.
+
+		Phase 1.5c.2: the BOQ-specific docstatus check is gone — there
+		is no separate BOQ document, so the WO docstatus is the only
+		thing to validate here."""
+		if not self.civil_work_order:
 			return
 		wo_docstatus = frappe.db.get_value(
 			"Work Order Contract", self.civil_work_order, "docstatus"
@@ -118,19 +133,6 @@ class WorkOrderRABill(Document):
 			frappe.throw(_(
 				"Linked Work Order Contract {0} must be Submitted."
 			).format(self.civil_work_order))
-
-		boq_wo, boq_docstatus = frappe.db.get_value(
-			"Civil Work Order BOQ", self.civil_work_order_boq,
-			["civil_work_order", "docstatus"]
-		) or (None, None)
-		if boq_docstatus != 1:
-			frappe.throw(_(
-				"BOQ {0} must be Submitted."
-			).format(self.civil_work_order_boq))
-		if boq_wo != self.civil_work_order:
-			frappe.throw(_(
-				"BOQ {0} belongs to Work Order {1}, not {2}."
-			).format(self.civil_work_order_boq, boq_wo, self.civil_work_order))
 
 	def validate_period_dates(self):
 		if self.period_from and self.period_to and self.period_to < self.period_from:

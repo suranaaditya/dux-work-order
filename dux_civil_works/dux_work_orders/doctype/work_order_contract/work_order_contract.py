@@ -9,6 +9,8 @@ from frappe.model.document import Document
 class WorkOrderContract(Document):
 	def validate(self):
 		self._ensure_boq_row_uids()
+		self._compute_boq_row_amounts()
+		self._set_default_boq_deviation_limits()
 		self._aggregate_summary_from_boq()
 		self._validate_boq_summary_heads_are_service_items()
 		self.set_total_amount()
@@ -16,6 +18,44 @@ class WorkOrderContract(Document):
 		self.validate_summary_items_are_service_items()
 		self.validate_retention_release_split()
 		self.validate_schedule_dates()
+
+	def _compute_boq_row_amounts(self):
+		"""Set amount = estimated_qty * rate on each boq_items row.
+
+		Phase 1.5c.2: this used to live on the deleted Civil Work Order
+		BOQ controller; moved here when BOQ folded into Work Order
+		Contract."""
+		if not self.boq_items:
+			return
+		for row in self.boq_items:
+			qty = float(row.estimated_qty or 0)
+			rate = float(row.rate or 0)
+			row.amount = qty * rate
+
+	def _set_default_boq_deviation_limits(self):
+		"""For BOQ rows where deviation_limit_pct is left unset (None),
+		populate the default from Work Order Settings.
+
+		IMPORTANT: tests `is None` explicitly, NOT a truthy fallback.
+		An explicit 0 from the user means 'strict — no deviation allowed,
+		amend WO for any qty change' and MUST be honored. The old
+		Civil Work Order BOQ controller had a `in (None, 0)` check that
+		overrode explicit 0 with the default — that was the 0% deviation
+		rejection bug fixed by Phase 1.5c.2."""
+		if not self.boq_items:
+			return
+		default_limit = None
+		try:
+			default_limit = frappe.db.get_single_value(
+				"Work Order Settings", "default_boq_deviation_limit_pct"
+			)
+		except Exception:
+			pass
+		if default_limit is None:
+			return
+		for row in self.boq_items:
+			if row.deviation_limit_pct is None:
+				row.deviation_limit_pct = default_limit
 
 	def _ensure_boq_row_uids(self):
 		"""Assign a stable UUID to any boq_items row that doesn't have one.

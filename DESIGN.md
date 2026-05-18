@@ -22,14 +22,14 @@ educational group operating ~59 institutions across India. RGI builds
 and maintains campus infrastructure continuously and contracts hundreds
 of civil works engagements per year across its institutions.
 
-The app is built to be reusable beyond RGI. As of Phase 1.5b
-(2026-05-18), all doctypes use a `Work Order` prefix (e.g.
+The app is built to be reusable beyond RGI. As of Phase 1.5
+(2026-05-18), all doctypes use the `Work Order` prefix (e.g.
 `Work Order Contract`, `Work Order RA Bill`, `Work Order BOQ Item`),
 chosen to be organisation-neutral. The original RGI-internal `Civil`
-prefix was replaced via the consolidated rename pass; only
-`Civil Work Order BOQ` retains its original name temporarily and will
-be deleted in Phase 1.5c when its rows fold into `Work Order Contract`.
-See Section 8 (Phase 1.5 refactor) and Section 9 (Future work).
+prefix was replaced in the Phase 1.5b consolidated rename pass; the
+last holdout, `Civil Work Order BOQ`, was deleted in Phase 1.5c.2 when
+its rows folded into `Work Order Contract`. See Section 8 (Phase 1.5
+refactor — delivered).
 
 ## 2. Scope
 
@@ -77,62 +77,62 @@ See Section 8 (Phase 1.5 refactor) and Section 9 (Future work).
 ```
 Work Order Contract
    │
-   ├─ Work Order Summary Item (child — pricing roll-up)
+   ├─ Work Order Summary Item (child — auto-derived from BOQ rows)
+   ├─ Work Order BOQ Item (child — detailed lines per summary head;
+   │                        each row carries a stable boq_row_uid)
    ├─ Work Order Contract Terms section (retention, mob advance, DLP, etc.)
    │
-   └──> Civil Work Order BOQ (1:1 with WO)
+   └──> Work Order RA Bill (N:1 with Work Order Contract)
               │
-              └─ Work Order BOQ Item (child — detailed lines per summary head)
-                       │
-                       └──> Work Order RA Bill (N:1 with BOQ)
-                                  │
-                                  ├─ Work Order RA Bill Item (child — populated from BOQ)
-                                  ├─ Work Order RA Bill Deduction (child)
-                                  │
-                                  └──> Purchase Invoice (N:M with RA Bill)
-                                             via "Get Items From RA Bill" picker
+              ├─ Work Order RA Bill Item (child — populated from wo.boq_items;
+              │                            each carries boq_row_uid for cumulative
+              │                            qty continuity across WO amendments)
+              ├─ Work Order RA Bill Deduction (child)
+              │
+              └──> Purchase Invoice (N:M with RA Bill)
+                         via "Get Items From RA Bill" picker
 
-Work Order Advance Register (1:1 with WO)
+Work Order Advance Register (1:1 with Work Order Contract)
    │
    ├─ Work Order Advance Tranche (child — manual entry in Phase 1,
    │                          Payment Voucher hook in Phase 2)
    └─ Work Order Advance Recovery (child — auto-posted from RA Bills)
 ```
 
-### 3.2 Doctype catalogue (Phase 1)
+### 3.2 Doctype catalogue (post-Phase-1.5c.2)
 
-12 doctypes total. Names use the `Work Order` prefix post-Phase-1.5b
-(2026-05-18 consolidated rename pass). The exception is `Civil Work Order
-BOQ`, which keeps its name only as long as the doctype exists — it will
-be deleted in Phase 1.5c. Work Order RA Bill was renamed during the
+11 doctypes total (post-1.5c.2; was 12 — `Civil Work Order BOQ` was
+deleted when BOQ rows folded into Work Order Contract). All doctypes
+use the `Work Order` prefix; the consolidated rename pass landed in
+Phase 1.5b (2026-05-18). Work Order RA Bill was renamed during the
 pilot rename (2026-04-29) that validated the v16 rename procedure.
 
 | Doctype | Kind | Purpose |
 |---|---|---|
 | Work Order Settings | Single | App-wide defaults: retention %, deviation limit, per-company GL accounts |
 | Work Order Company Account | Child | Per-company expense/retention/advance accounts |
-| Work Order Contract | Submittable parent | Contract with a contractor; pricing summary; terms |
-| Work Order Summary Item | Child | Per-summary-head amount on a WO |
-| Civil Work Order BOQ | Submittable parent | Detailed scope sheet; 1:1 with WO |
-| Work Order BOQ Item | Child | Detailed BOQ line (item_no, summary_head, description, UOM, qty, rate, deviation %) |
+| Work Order Contract | Submittable parent | Contract with a contractor; embedded BOQ; auto-aggregated summary; terms |
+| Work Order Summary Item | Child | Per-summary-head amount on a WO (auto-derived from `boq_items`) |
+| Work Order BOQ Item | Child | Detailed BOQ line embedded in Work Order Contract; carries `boq_row_uid` (stable across WO amendments) |
 | Work Order Advance Register | Standalone | Per-WO mobilization advance tracker |
 | Work Order Advance Tranche | Child | An advance paid in (Phase 1: manual; Phase 2: from Payment Voucher) |
 | Work Order Advance Recovery | Child | An advance recovered out (auto-posted from RA Bill submit) |
-| Work Order RA Bill | Submittable parent | Running Account Bill; one bill per measurement event/period |
-| Work Order RA Bill Item | Child | Per-BOQ-line cumulative quantity and this-bill amount |
+| Work Order RA Bill | Submittable parent | Running Account Bill; one bill per measurement event/period; reads BOQ from parent WO via `wo.boq_items` |
+| Work Order RA Bill Item | Child | Per-BOQ-line cumulative quantity and this-bill amount; references source BOQ row via `boq_row_uid` for amendment-safe lookup of previous cumulative qty |
 | Work Order RA Bill Deduction | Child | Retention, recoveries, taxes, cess — auto-suggested and editable |
 
 ### 3.3 Key relationships
 
 - `Work Order Contract` is the contract identity. Everything else hangs off it.
-- `Civil Work Order BOQ` is 1:1 with the WO and was originally separated
-  to allow independent BOQ versioning. In practice this caused user
-  confusion (entering data twice) and a reconciliation problem
-  (WO total vs BOQ total could diverge). **Phase 1.5 collapses BOQ into
-  the WO** — see Section 8.
-- `Work Order RA Bill` references a specific BOQ (and through it, the WO).
-  Each RA Bill is one billing event; a WO accumulates many RA Bills over
-  its life.
+- BOQ rows live ON Work Order Contract directly (child table `boq_items`).
+  The separate Civil Work Order BOQ doctype existed in Phase 1 but was
+  deleted in Phase 1.5c.2 — see Section 8. The `summary_items` table on
+  the WO is auto-derived from `boq_items` grouped by `summary_head`; WO
+  total equals BOQ total by construction.
+- `Work Order RA Bill` references the Work Order Contract directly via
+  `civil_work_order` (Link field). Each RA Bill is one billing event;
+  a WO accumulates many RA Bills over its life. RA Bill items reference
+  the source BOQ row via `boq_row_uid` (stable across WO amendments).
 - `Purchase Invoice` is N:M with RA Bills: one PI can reference multiple
   RA Bills (typical when invoicing a month's bills together), and one RA
   Bill can be invoiced across multiple PIs (typical when partial invoices
@@ -146,8 +146,9 @@ This section captures the rationale behind shape choices. Each decision is
 labeled with status (Locked / Phase 1.5 refactor pending / Phase 2 / etc.).
 
 ### 4.1 Single Work Order document with summary + BOQ in one form
-**Status:** Phase 1.5 refactor pending (Phase 1 originally split this; the
-split caused UX and reconciliation problems and is being collapsed.)
+**Status:** Locked (Phase 1.5 delivered — commits 2e6f5cf (additive), and
+the BOQ doctype was deleted in Phase 1.5c.2; both flows no longer
+coexist).
 
 The user enters BOQ rows directly on the Work Order Contract form. The
 summary table at the top of the form is read-only and auto-aggregated
@@ -256,9 +257,10 @@ Every contract document in this app prints with two layers:
 - Item number, description, UOM, qty, rate, amount columns
 - Reads like a measurement sheet
 
-This applies to Work Order Contract, Civil Work Order BOQ (if printed
-standalone), Work Order RA Bill, and to Purchase Invoices generated from
-RA Bills (the suppress-qty-uom override on PI line printing).
+This applies to Work Order Contract (whose print format will render
+the summary on page 1 and the embedded BOQ from page 2), Work Order
+RA Bill, and to Purchase Invoices generated from RA Bills (the
+suppress-qty-uom override on PI line printing).
 
 The suppression marker is the conjunction of `is_stock_item = 0` AND
 `stock_uom = "Nos"` on the source Item — this identifies a service-Item
@@ -287,8 +289,10 @@ Cumulative-quantity continuity across amendments is preserved via a
 UID, not the BOQ row's child name. When a WO is amended, BOQ rows are
 copied with their `boq_row_uid` preserved — so an RA Bill's reference to
 "row uid xyz" still resolves to the same logical row in the amended WO.
-This is added in Phase 1.5 (alongside the WO+BOQ collapse) so future
-amendment work has the necessary infrastructure.
+ADDED in Phase 1.5c.1 (commit 2e6f5cf) on Work Order BOQ Item; Phase
+1.5c.2 added the corresponding `boq_row_uid` field on Work Order RA
+Bill Item and switched `_get_previous_cumulative_qty` to look up by UID
+rather than child-row name.
 
 ### 4.8 Retention release split
 **Status:** Locked.
@@ -423,76 +427,85 @@ CLAUDE.md "App-shipped fixtures" and related sections.
   current single-supplier model acceptable, or do we need a Supplier
   child table?
 
-## 8. Phase 1.5 refactor
+## 8. Phase 1.5 refactor (delivered)
 
-Status (2026-05-18):
+**Status: COMPLETE as of 2026-05-18**, across three commits:
 - **1.5a** (commit 90b6dc1) — refactor plan document landed in
-  `docs/phase_1_5_refactor_plan.md`. COMPLETE.
-- **1.5b** — consolidated rename pass: 10 doctype renames + module
-  rename + PI custom field reattribution. COMPLETE.
-- **1.5c** — single-document refactor + bug fixes (described below).
-  NEXT.
+  `docs/phase_1_5_refactor_plan.md`.
+- **1.5b** (commit 3e9bfb0) — consolidated rename pass: 10 doctype renames
+  + module rename + PI custom field reattribution.
+- **1.5c.1** (commit 2e6f5cf) — additive: added `boq_items` to Work Order
+  Contract + `boq_row_uid` on Work Order BOQ Item; both old and new flows
+  coexisted briefly.
+- **1.5c.2** (this commit) — subtractive + bug-fixes: deleted Civil Work
+  Order BOQ doctype; Work Order RA Bill now reads BOQ from Work Order
+  Contract directly; 0% deviation rejection bug fixed; smoke test
+  rewritten for single-document model.
 
-A planned set of changes to fix two real problems discovered in Phase 1:
-
-### 8.1 Collapse Civil Work Order BOQ into Work Order Contract
-The two-document split (WO with summary lines, separate BOQ document with
-detailed lines) caused user confusion (entering same data twice) and a
-reconciliation problem (WO total vs BOQ total could diverge).
+### 8.1 Collapse Civil Work Order BOQ into Work Order Contract — DONE
+The two-document split caused user confusion (entering same data twice)
+and reconciliation drift (WO total vs BOQ total could diverge).
 
 After Phase 1.5:
-- Work Order Contract absorbs the BOQ. The user enters BOQ rows directly
-  on the WO form.
-- The summary table on the WO becomes **read-only and auto-aggregated**
-  from BOQ rows (group by summary_head, sum amount). WO total ≡ BOQ
-  total by construction.
-- Civil Work Order BOQ doctype is **deleted**.
-- Work Order RA Bill's `civil_work_order_boq` link is removed; the bill
-  reads BOQ rows directly from the parent WO.
+- Work Order Contract absorbs the BOQ via the `boq_items` child table.
+- The summary table on the WO is **read-only and auto-aggregated** from
+  BOQ rows (group by summary_head, sum amount). WO total ≡ BOQ total
+  by construction.
+- Civil Work Order BOQ doctype has been deleted (Phase 1.5c.2).
+- Work Order RA Bill's `civil_work_order_boq` Link field has been removed;
+  the bill reads BOQ rows directly from the parent Work Order Contract.
 
-### 8.2 Add boq_row_uid for amendment continuity
-- Each BOQ row gets a hidden `boq_row_uid` UUID field, generated on
-  insert, stable across WO amendments.
-- Work Order RA Bill Item references this UID (in addition to the row name)
-  so cumulative quantity history survives WO amendments cleanly.
-- This is added now (Phase 1.5) so Phase 2 amendment work has the
-  infrastructure ready.
+### 8.2 Add boq_row_uid for amendment continuity — DONE
+- Each BOQ row carries a hidden `boq_row_uid` UUID field, generated on
+  insert (Phase 1.5c.1) and ensured present at validate time by the
+  parent Work Order Contract controller (since child `before_insert`
+  doesn't reliably fire during parent insert).
+- Work Order RA Bill Item references this UID (Phase 1.5c.2). The
+  controller's `_get_previous_cumulative_qty` queries by UID so that
+  cumulative quantity history survives WO amendments cleanly.
 
-### 8.3 Bug fixes
-- `deviation_limit_pct` accepts 0 (currently rejects due to truthy check).
-- BOQ row `amount` is visible in the child table (currently
-  invisible due to a field flag).
-- Audit ALL percentage fields for similar truthy-check bugs.
+### 8.3 Bug fixes — DONE
+- `deviation_limit_pct` now honors explicit 0 as "strict, no deviation
+  allowed". The buggy `in (None, 0)` check from the deleted Civil Work
+  Order BOQ controller is gone; the new `_set_default_boq_deviation_limits`
+  on Work Order Contract uses `is None` explicitly.
+- BOQ row `amount` visible in the child table (in_list_view=1 confirmed).
+- Percent-field audit: only legitimate `(X or 0) > 0` patterns remain
+  (checking "is this percentage greater than zero" — 0 correctly disables
+  the deduction).
 
-### 8.4 Regression coverage
-- The regression smoke test is updated to exercise the single-document
-  model.
-- Pre- and post-refactor runs confirm zero functional regression.
+### 8.4 Regression coverage — DONE
+- `scripts/regression_smoke_test.py` rewritten for the single-document
+  model. Exercises embedded BOQ, summary auto-aggregation, boq_row_uid
+  propagation through RA Bill, 0% deviation enforcement (bug-fix canary),
+  5% default deviation enforcement, amend canary, and register reverse-
+  on-cancel. ALL PHASES PASSED post-1.5c.2.
 
 ## 9. Future work (Phase 2 / Phase 3)
 
-In priority order:
+### Completed work
 
-1. **Phase 1.5** — refactor above (next, as soon as design doc is committed)
-2. **RGI dry-run** at one institution — pick a small project, exercise
-   the Phase 1.5 build end-to-end, collect feedback before further work
-3. **Consolidated rename pass** — DONE in Phase 1.5b (2026-05-18).
-   10 doctypes renamed from `Civil *` to `Work Order *`, module
-   renamed from `Dux Civil Works` to `Dux Work Orders`, inner package
-   folder renamed in lockstep, regression smoke test passes including
-   amend canary. Civil Work Order BOQ retained pending 1.5c deletion.
-4. **Phase 2: Amendment workflow** — Frappe-native amend cycle for WOs,
-   with cumulative quantity continuity via boq_row_uid
-5. **Phase 2: Measurement Book** — MB doctype with per-WO toggle;
+- **Phase 1.5** — single-document refactor + consolidated rename pass.
+  DONE in commits 90b6dc1 (plan), 3e9bfb0 (rename), 2e6f5cf (additive
+  embedding), and Phase 1.5c.2 (deletion + bug fixes).
+
+### Priority order from here
+
+1. **RGI dry-run** at one institution — pick a small project, exercise
+   the post-1.5 build end-to-end, collect feedback before further work.
+2. **Phase 2: Amendment workflow** — Frappe-native amend cycle for WOs,
+   with cumulative quantity continuity via boq_row_uid (infrastructure
+   already in place from Phase 1.5).
+3. **Phase 2: Measurement Book** — MB doctype with per-WO toggle;
    MB-driven cumulative quantities on RA Bills (Model A — RA Bill is
-   user-initiated, pulls from MB on demand)
-6. **Phase 2: Extra Items** — work outside original BOQ
-7. **Phase 2: Payment Voucher integration** — Work Order Advance Register
-   auto-sync with the dux_voucher app's Payment Voucher
-8. **Phase 2/3: Final Bill, DLP, FIM, PBG** — end-of-project documents
-9. **Phase 2/3: Print formats** — all documents, per the summary/detail
-   philosophy
-10. **Phase 2/3: Workflow approvals** — Maker-Checker on WO and RA Bill
+   user-initiated, pulls from MB on demand).
+4. **Phase 2: Extra Items** — work outside original BOQ.
+5. **Phase 2: Payment Voucher integration** — Work Order Advance Register
+   auto-sync with the dux_voucher app's Payment Voucher.
+6. **Phase 2/3: Final Bill, DLP, FIM, PBG** — end-of-project documents.
+7. **Phase 2/3: Print formats** — all documents, per the summary/detail
+   philosophy.
+8. **Phase 2/3: Workflow approvals** — Maker-Checker on WO and RA Bill.
 
 ## 10. Document map
 

@@ -1051,3 +1051,53 @@ them.
    `_ensure_boq_row_uids` method ensures boq_row_uid is set for every
    boq_items row at validate time; Work Order BOQ Item.before_insert is
    the standalone safety net.
+
+
+### Phase 1.5c.2 — single-document model active
+
+After commit `<<this commit hash>>`, the Civil Work Order BOQ doctype
+no longer exists. Work Order Contract owns BOQ rows directly via its
+`boq_items` child table. Work Order RA Bill reads BOQ from the parent
+Work Order Contract via `wo.boq_items`, not from a separate BOQ
+document. The `civil_work_order_boq` Link field on Work Order RA Bill
+has been removed.
+
+Implications for future work on this app:
+- Any code that says `frappe.get_doc("Civil Work Order BOQ", ...)` is
+  dead. Either delete it or rewrite to read from Work Order Contract.
+- Any code that says `doc.civil_work_order_boq` is dead. The RA Bill
+  reads BOQ rows from `wo.boq_items` directly.
+- The regression smoke test (`scripts/regression_smoke_test.py`) reflects
+  the new flow and is the authoritative behavioural spec.
+- Work Order Contract's `_set_default_boq_deviation_limits` applies the
+  Work Order Settings default `default_boq_deviation_limit_pct` to BOQ
+  rows where the user left the field blank (None). An explicit 0 is
+  HONORED — meaning "strict, no deviation, amend WO for any qty change."
+  This is the 0% deviation rejection bug fix from 1.5c.2; the buggy
+  `in (None, 0)` check from the deleted Civil Work Order BOQ controller
+  is gone.
+
+Phase 1.5 is complete. The app is single-document.
+
+
+### Phase 1.5b corollary — JSON-vs-DB drift on Link options
+
+The Phase 1.5b pilot's manual amended_from self-ref fix updated the DB
+but not the on-disk JSON. Every subsequent `bench migrate` was silently
+reverting the DB to match the stale JSON. Caught in 1.5c.1 when adding
+fields to Work Order Contract failed with `WrongOptionsDoctypeLinkError`
+on save (because the in-memory doc loaded from JSON had the wrong
+options for `amended_from`).
+
+Operational lesson:
+- Any DB-only fix to a doctype's metadata that lives in app source MUST
+  also be reflected in the on-disk JSON. Otherwise `bench migrate`
+  silently undoes it.
+- The canonical way to ensure consistency: never modify DB metadata
+  directly via `frappe.db.set_value` on DocField records. Always load
+  the DocType doc, modify its fields list, and call `doc.save()`.
+  Frappe rewrites the JSON automatically. Direct DB manipulation
+  bypasses the JSON writer.
+- After any DB-only metadata change, audit the JSON to confirm it
+  matches. `grep -rn '"options": "Civil [A-Z]"' --include='*.json'`
+  catches stale Link options after a rename.

@@ -22,7 +22,6 @@
   "project",
   "work_title",
   "section_boq_ref",
-  "civil_work_order_boq",
   "section_items",
   "items",
   "section_totals",
@@ -154,14 +153,6 @@
    "label": "BOQ Reference"
   },
   {
-   "description": "Submitted BOQ for the linked Work Order. Items are auto-populated from this BOQ on first save.",
-   "fieldname": "civil_work_order_boq",
-   "fieldtype": "Link",
-   "label": "BOQ Document",
-   "options": "Civil Work Order BOQ",
-   "reqd": 1
-  },
-  {
    "description": "All BOQ items are auto-populated. Enter the cumulative qty done as of this bill. Lines with zero cumulative qty roll forward unchanged.",
    "fieldname": "section_items",
    "fieldtype": "Section Break",
@@ -265,7 +256,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-05-18 11:04:01.769885",
+ "modified": "2026-05-18 13:17:43.517975",
  "modified_by": "Administrator",
  "module": "Dux Work Orders",
  "name": "Work Order RA Bill",

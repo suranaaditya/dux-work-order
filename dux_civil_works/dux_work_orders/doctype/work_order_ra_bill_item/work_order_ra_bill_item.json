@@ -17,7 +17,8 @@
   "cumulative_qty",
   "this_bill_qty",
   "rate",
-  "this_bill_amount"
+  "this_bill_amount",
+  "boq_row_uid"
  ],
  "fields": [
   {
@@ -123,13 +124,21 @@
    "label": "This Bill Amt",
    "options": "company_currency",
    "read_only": 1
+  },
+  {
+   "description": "UID of the source BOQ row on the parent Work Order Contract. Used to look up previous_cumulative_qty across WO amendments.",
+   "fieldname": "boq_row_uid",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "BOQ Row UID",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-04-29 11:03:58.687536",
+ "modified": "2026-05-18 13:10:16.707879",
  "modified_by": "Administrator",
  "module": "Dux Work Orders",
  "name": "Work Order RA Bill Item",
