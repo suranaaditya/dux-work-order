@@ -8,5 +8,16 @@ frappe.ui.form.on("Work Order Contract", {
 		frm.set_query("summary_head", "summary_items", () => ({
 			filters: { item_group: "Work Order Items", disabled: 0 },
 		}));
+		// Same filter for BOQ Items child rows.
+		frm.set_query("summary_head", "boq_items", () => ({
+			filters: { item_group: "Work Order Items", disabled: 0 },
+		}));
+	},
+
+	refresh(frm) {
+		// When boq_items has rows, summary_items is auto-aggregated by the
+		// controller — disable manual editing to make this visible to the user.
+		const has_boq = frm.doc.boq_items && frm.doc.boq_items.length > 0;
+		frm.toggle_enable("summary_items", !has_boq);
 	},
 });

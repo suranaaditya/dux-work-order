@@ -25,6 +25,8 @@
   "scheduled_completion_date",
   "section_summary",
   "summary_items",
+  "boq_section",
+  "boq_items",
   "section_totals",
   "total_amount",
   "section_terms",
@@ -298,16 +300,28 @@
    "fieldtype": "Link",
    "label": "Amended From",
    "no_copy": 1,
-   "options": "Civil Work Order",
+   "options": "Work Order Contract",
    "print_hide": 1,
    "read_only": 1
+  },
+  {
+   "fieldname": "boq_section",
+   "fieldtype": "Section Break",
+   "label": "BOQ Details"
+  },
+  {
+   "description": "Detailed BOQ rows. When populated, summary_items is auto-computed (grouped by summary_head). Leave empty for old flow.",
+   "fieldname": "boq_items",
+   "fieldtype": "Table",
+   "label": "BOQ Items",
+   "options": "Work Order BOQ Item"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-05-18 11:00:50.969063",
+ "modified": "2026-05-18 12:45:04.428075",
  "modified_by": "Administrator",
  "module": "Dux Work Orders",
  "name": "Work Order Contract",

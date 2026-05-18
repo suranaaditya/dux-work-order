@@ -988,3 +988,66 @@ Diagnostic approach when a standard-doctype validation surprises us:
 
 Inspect the offending app's handler at the path the hook reference
 points to.
+
+
+### Phase 1.5b execution — additional Frappe learnings
+
+These were discovered during the consolidated rename pass (commit 3e9bfb0)
+and are kept here so future renames or module operations don't rediscover
+them.
+
+1. Frappe v16 rename_doc auto-handles amended_from self-references.
+   The manual fix_self_references_after_rename helper is no longer strictly
+   required, but harmless to keep as a safety net. Verify post-rename
+   whether self-refs were updated; apply the helper only if not.
+
+   IMPORTANT corollary discovered in Phase 1.5c.1: the DB-level self-ref
+   fix is overwritten by `bench migrate` if the on-disk JSON still has
+   the old options. Always patch BOTH the DB and the doctype JSON file
+   after a rename. Look for `"options": "<Old Doctype Name>"` in the
+   renamed doctype's JSON and fix it in place; otherwise the next migrate
+   reverts the DB update silently.
+
+2. Module Defs cannot be renamed via frappe.rename_doc when they are
+   non-custom. Frappe throws "Only Custom Modules can be renamed". The
+   canonical workaround: create the new Module Def via frappe.new_doc,
+   reassign each renamed DocType's module field to the new module, then
+   delete the old Module Def once its doctype count reaches zero.
+
+3. Module folder must be moved on disk when the module name changes.
+   Frappe's doctype loader uses path <app>/<module_snake>/doctype/<dt_snake>/.
+   DB-level module rename does NOT move filesystem folders — you must
+   mv the inner module folder after the DB operation. Otherwise the
+   doctype controllers won't be importable even though the metadata is
+   correct.
+
+4. IPython console-over-stdin gotcha refined: even within an exec(SCRIPT, ...)
+   wrapper, the inner SCRIPT string should be flat at module level. Avoid:
+   def wrappers, blank lines inside loop bodies, nested function definitions,
+   and multi-line if/else blocks where possible. The IPython parser splits
+   cells on blank lines which orphans indented blocks. Symptoms: scripts
+   that print early lines, then silently skip later blocks, then complain
+   about NameErrors on variables that were "defined" in earlier orphaned
+   blocks. When a control-flow block is necessary, keep it tight with no
+   blank lines and verify state via a follow-up SQL query rather than
+   trusting print statements inside the script.
+
+5. Custom Field module attribution: Custom Fields created via the console
+   without explicit module assignment have module=NULL. They function
+   correctly but won't be picked up by `bench export-fixtures` and won't
+   travel with the app on uninstall. Always set module on Custom Fields
+   via frappe.db.set_value("Custom Field", name, "module", "<Module Name>")
+   when creating them in a console script.
+
+### Phase 1.5c.1 execution — embedded BOQ child hooks
+
+6. Child rows added via parent.append() and saved via parent.insert() do
+   NOT reliably get their own before_insert hook called. If a child needs
+   stable defaults (e.g., a UUID), set the default in the PARENT's
+   validate() by iterating self.<child_table> and assigning defaults
+   for any row whose field is still empty. Keep the child's before_insert
+   as a safety net for the rarer case where rows are inserted standalone
+   via `child_doc.insert()`. Reference: Work Order Contract's
+   `_ensure_boq_row_uids` method ensures boq_row_uid is set for every
+   boq_items row at validate time; Work Order BOQ Item.before_insert is
+   the standalone safety net.

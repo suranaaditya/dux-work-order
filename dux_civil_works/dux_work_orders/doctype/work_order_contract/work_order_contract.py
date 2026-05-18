@@ -8,11 +8,81 @@ from frappe.model.document import Document
 
 class WorkOrderContract(Document):
 	def validate(self):
+		self._ensure_boq_row_uids()
+		self._aggregate_summary_from_boq()
+		self._validate_boq_summary_heads_are_service_items()
 		self.set_total_amount()
 		self.validate_summary_items()
 		self.validate_summary_items_are_service_items()
 		self.validate_retention_release_split()
 		self.validate_schedule_dates()
+
+	def _ensure_boq_row_uids(self):
+		"""Assign a stable UUID to any boq_items row that doesn't have one.
+
+		Child docs don't reliably get their own `before_insert` called when
+		they're inserted as part of a parent save, so we assign here on the
+		parent's validate. (The Work Order BOQ Item controller also has a
+		before_insert safety net for the case where rows are inserted
+		standalone via doc.insert().)"""
+		import uuid as _uuid
+		if not self.boq_items:
+			return
+		for row in self.boq_items:
+			if not row.boq_row_uid:
+				row.boq_row_uid = str(_uuid.uuid4())
+
+	def _aggregate_summary_from_boq(self):
+		"""When boq_items has rows, derive summary_items from them.
+		Groups BOQ rows by summary_head Item, sums amounts.
+
+		Backward compatibility: if boq_items is empty, summary_items is
+		left untouched (old-flow Work Orders work as before)."""
+		if not self.boq_items:
+			return  # old flow, summary_items as entered by user
+
+		from collections import defaultdict
+		totals = defaultdict(float)
+		for boq_row in self.boq_items:
+			if not boq_row.summary_head:
+				continue
+			totals[boq_row.summary_head] += float(boq_row.amount or 0)
+
+		# Preserve order of first occurrence in boq_items for stable UI
+		seen_heads = []
+		for row in self.boq_items:
+			if row.summary_head and row.summary_head not in seen_heads:
+				seen_heads.append(row.summary_head)
+
+		self.summary_items = []
+		for head in seen_heads:
+			self.append("summary_items", {
+				"summary_head": head,
+				"amount": totals[head],
+			})
+
+	def _validate_boq_summary_heads_are_service_items(self):
+		"""When boq_items is populated, each row's summary_head must be a
+		valid service Item (Work Order Items group, not disabled)."""
+		if not self.boq_items:
+			return
+		for idx, row in enumerate(self.boq_items, start=1):
+			if not row.summary_head:
+				frappe.throw(_("BOQ row {0}: summary_head is mandatory.").format(idx))
+			item_data = frappe.db.get_value(
+				"Item", row.summary_head,
+				["item_group", "disabled"], as_dict=True,
+			)
+			if not item_data:
+				frappe.throw(_("BOQ row {0}: summary head Item '{1}' does not exist.").format(
+					idx, row.summary_head))
+			if item_data.disabled:
+				frappe.throw(_("BOQ row {0}: summary head Item '{1}' is disabled.").format(
+					idx, row.summary_head))
+			if item_data.item_group != "Work Order Items":
+				frappe.throw(_(
+					"BOQ row {0}: summary head '{1}' must be in 'Work Order Items' group."
+				).format(idx, row.summary_head))
 
 	def before_insert(self):
 		# On a brand-new document only, prefill terms from Work Order Settings
