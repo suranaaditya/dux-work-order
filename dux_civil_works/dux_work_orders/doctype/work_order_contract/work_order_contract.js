@@ -1,20 +1,21 @@
 // Copyright (c) 2026, Dutch Digitech and contributors
 // For license information, please see license.txt
 
-// Post-Phase-1.5c.3: summary_items is unconditionally read_only at the
-// doctype level (in JSON). The earlier refresh() handler that toggled
-// summary_items editability based on boq_items presence has been removed
-// — it was leftover from the brief 1.5c.1 window when the old
-// two-document flow coexisted with the new one. After 1.5c.2 deleted
-// Civil Work Order BOQ, summary_items is always auto-aggregated from
-// boq_items, never user-editable.
+// Post-Phase-1.5c.4: live client-side compute of BOQ row amount + summary
+// aggregation. The server controller still recomputes both in validate()
+// — that's the source of truth on save. The handlers below give the user
+// immediate visual feedback as they type, without waiting for a save.
+//
+// summary_items is unconditionally read_only at the doctype level (set
+// in 1.5c.3 JSON). It is rebuilt client-side on every relevant change
+// to boq_items; user cannot edit it directly.
+
 frappe.ui.form.on("Work Order Contract", {
 	setup(frm) {
 		// Filter summary_head picker on BOQ Items child rows to service
 		// Items in the "Work Order Items" group. summary_items.summary_head
-		// is also kept on the same query for completeness, even though
-		// summary_items is read-only — preserves the filter if a future
-		// change re-opens editing.
+		// gets the same query for completeness even though the table is
+		// read-only — preserves the filter if a future change re-opens it.
 		frm.set_query("summary_head", "summary_items", () => ({
 			filters: { item_group: "Work Order Items", disabled: 0 },
 		}));
@@ -22,4 +23,68 @@ frappe.ui.form.on("Work Order Contract", {
 			filters: { item_group: "Work Order Items", disabled: 0 },
 		}));
 	},
+
+	refresh(frm) {
+		// On form load, make sure the summary reflects the current boq_items.
+		// Especially important for amended docs where the persisted summary
+		// could be a beat behind the BOQ.
+		rebuild_summary(frm);
+	},
+
+	boq_items_remove(frm) {
+		// Row removed from BOQ — re-aggregate.
+		rebuild_summary(frm);
+	},
 });
+
+frappe.ui.form.on("Work Order BOQ Item", {
+	estimated_qty(frm, cdt, cdn) {
+		recompute_row_amount(cdt, cdn);
+		frm.refresh_field("boq_items");
+		rebuild_summary(frm);
+	},
+	rate(frm, cdt, cdn) {
+		recompute_row_amount(cdt, cdn);
+		frm.refresh_field("boq_items");
+		rebuild_summary(frm);
+	},
+	summary_head(frm) {
+		// A row's summary head changed (or was set on a new row) — re-bucket.
+		rebuild_summary(frm);
+	},
+});
+
+function recompute_row_amount(cdt, cdn) {
+	const row = locals[cdt][cdn];
+	const qty = parseFloat(row.estimated_qty) || 0;
+	const rate = parseFloat(row.rate) || 0;
+	row.amount = qty * rate;
+}
+
+function rebuild_summary(frm) {
+	// Group BOQ rows by summary_head, sum amount. Preserve first-occurrence
+	// ordering for a stable UI.
+	const totals = {};
+	const order = [];
+	(frm.doc.boq_items || []).forEach((r) => {
+		if (!r.summary_head) return;
+		if (!(r.summary_head in totals)) {
+			totals[r.summary_head] = 0;
+			order.push(r.summary_head);
+		}
+		totals[r.summary_head] += parseFloat(r.amount) || 0;
+	});
+
+	frm.clear_table("summary_items");
+	let total = 0;
+	order.forEach((head) => {
+		const row = frm.add_child("summary_items");
+		row.summary_head = head;
+		row.amount = totals[head];
+		total += totals[head];
+	});
+	frm.refresh_field("summary_items");
+
+	// Keep total_amount in sync with the live summary.
+	frm.set_value("total_amount", total);
+}

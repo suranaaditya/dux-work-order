@@ -161,7 +161,6 @@
    "label": "Scheduled Completion Date"
   },
   {
-   "description": "High-level work heads. Detailed BOQ is maintained in the linked Work Order BOQ document (created in a later step).",
    "fieldname": "section_summary",
    "fieldtype": "Section Break",
    "label": "Work Order Summary (Auto-computed)"
@@ -323,7 +322,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-05-18 16:14:26.004468",
+ "modified": "2026-05-18 16:29:22.309570",
  "modified_by": "Administrator",
  "module": "Dux Work Orders",
  "name": "Work Order Contract",
