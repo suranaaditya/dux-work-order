@@ -151,10 +151,12 @@ the BOQ doctype was deleted in Phase 1.5c.2; both flows no longer
 coexist).
 
 The user enters BOQ rows directly on the Work Order Contract form. The
-summary table at the top of the form is read-only and auto-aggregated
-from BOQ rows by summary head. This eliminates the double-entry problem
-of the original two-document design and makes WO total ≡ BOQ total by
-construction.
+form layout places BOQ Items FIRST (where the user actually works), with
+the Work Order Summary appearing below as a read-only, auto-aggregated
+roll-up. The summary cannot be edited directly — to change a summary
+amount, edit the BOQ rows above it. This eliminates the double-entry
+problem of the original two-document design and makes WO total ≡ BOQ
+total by construction.
 
 The print format renders the summary on page 1 and the detailed BOQ from
 page 2 — matching the form layout — see Section 4.6.

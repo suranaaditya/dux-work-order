@@ -23,10 +23,10 @@
   "scheduled_start_date",
   "cb_schedule_1",
   "scheduled_completion_date",
-  "section_summary",
-  "summary_items",
   "boq_section",
   "boq_items",
+  "section_summary",
+  "summary_items",
   "section_totals",
   "total_amount",
   "section_terms",
@@ -164,13 +164,15 @@
    "description": "High-level work heads. Detailed BOQ is maintained in the linked Work Order BOQ document (created in a later step).",
    "fieldname": "section_summary",
    "fieldtype": "Section Break",
-   "label": "Summary Items"
+   "label": "Work Order Summary (Auto-computed)"
   },
   {
+   "description": "Auto-aggregated from BOQ Items above. Grouped by summary head, summed across amounts. Read-only - to change the summary, edit the BOQ rows above.",
    "fieldname": "summary_items",
    "fieldtype": "Table",
    "label": "Summary Items",
    "options": "Work Order Summary Item",
+   "read_only": 1,
    "reqd": 1
   },
   {
@@ -321,7 +323,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-05-18 12:45:04.428075",
+ "modified": "2026-05-18 16:14:26.004468",
  "modified_by": "Administrator",
  "module": "Dux Work Orders",
  "name": "Work Order Contract",
