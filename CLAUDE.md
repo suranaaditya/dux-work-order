@@ -1199,7 +1199,11 @@ BOQ items, rate revisions, deletions) must wait for the Phase 2
 Variation Order doctype. The user should note these changes; we'll
 build the proper mechanism in Phase 2.
 
-See DESIGN.md Section 4.7 for the locked Phase 2 architecture.
+See DESIGN.md Section 4.7 for the locked Phase 2 architecture — the
+full Variation Order design (separate doctype, left-to-right scope
+allocation, segregated scope-tagged billing lines, consolidated
+report, WO-form linked variations view, VO print format) is now
+captured there as of 2026-05-21 and is the next build.
 
 
 ### Field reordering — use field_order, not idx (Finding 1 learning)

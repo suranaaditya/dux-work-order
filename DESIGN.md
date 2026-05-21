@@ -268,98 +268,194 @@ The suppression marker is the conjunction of `is_stock_item = 0` AND
 `stock_uom = "Nos"` on the source Item — this identifies a service-Item
 summary line distinct from a measurable BOQ row.
 
-### 4.7 BOQ changes via Variation Order doctype (deferred to Phase 2)
-**Status:** Phase 2 (deferred); architecture locked. Supersedes the
-earlier decision to use Frappe's native amend cycle, which was
-based on flawed reasoning.
+### 4.7 BOQ changes via Work Order Variation doctype
+**Status:** Locked design; build is the next Phase 2 milestone.
+Supersedes the earlier decision to use Frappe's native amend cycle,
+which was rejected in Phase 1.5d because the cascade through linked RA
+Bills and Purchase Invoices makes it operationally unworkable for
+mid-contract scope changes.
 
-When a BOQ needs to change after WO submit — rate revision, qty
-addition beyond deviation, new item, deleted item — the user creates
-a **Work Order Variation** document that references the parent WO
-Contract. The variation lists deltas: added BOQ rows, modified rows
-(with old/new qty or rate), deleted rows (with reference to the
-original `boq_row_uid`).
+#### The model
 
-The original WO Contract stays unchanged in the database. Each
-approved Variation accumulates alongside it. The "current BOQ state"
-of a WO is the original BOQ plus all approved variations. RA Bills
-compute their items by walking this union; the `boq_row_uid` field
-on each row remains stable across variations.
+When a BOQ needs to change after WO submit — extra quantity beyond
+the deviation tolerance, or a brand-new item that wasn't in the
+original BOQ — the user creates a **Work Order Variation** document
+linked to the parent Work Order Contract.
 
-Rationale (after re-evaluation of the originally-locked amend-cycle
-decision):
+The original WO Contract is **never modified after submit**. It stays
+frozen and immutable. Variations are **separate submittable documents**
+that accumulate alongside it. Each variation carries its own variation
+number (Variation 1, 2, 3... per parent WO), a reasons-for-change /
+justification field, its own approval/submit state, and its own
+BOQ-style line table.
 
-- **Matches industry practice exactly.** Government contracts (CPWD,
-  PWD) and private construction universally use change orders / variation
-  orders as ADDITIVE deltas to the original contract, never as a
-  replacement of the original. The original WO is sacred.
-- **Avoids cascade cancellation.** Frappe's amend cycle requires
-  cancelling the WO, which cascades through linked RA Bills and
-  Purchase Invoices — all downstream documents must be cancelled
-  first, then re-created against the new WO. This is operationally
-  painful for mid-contract scope changes (the common case at RGI).
-  The Variation Order model leaves all downstream documents
-  unaffected; RA Bills against the original WO continue to function.
-- **Captures intent better.** "VO-1 adds 30 cum of concrete; VO-2
-  deletes paving; VO-3 increases plumbing scope" reads like a real
-  construction record. Frappe's amend produces "WO-2026-0009-1,
-  WO-2026-0009-2" which doesn't convey what changed.
-- **Supports incremental approvals.** Each variation gets its own
-  approval workflow. RGI's engineering hierarchy can sign off on
-  each VO independently. This is impossible with the
-  amend-the-whole-WO approach.
-- **Audit trail is cleaner.** The original WO and each approved VO
-  are all live, queryable, and printable records. With Frappe's
-  amend cycle, prior versions are cancelled — present in DB but
-  flagged docstatus=2, which is correct but harder to reason about.
+A variation's lines mirror the structure of original BOQ rows: each
+line has item_no, summary_head, description, uom, qty, rate, tax_pct,
+and the computed `amount` / `tax_amount` / `amount_with_tax` (the
+per-row tax fields introduced by Finding 1, Phase 1.5e). Each variation
+line carries its OWN `boq_row_uid`, distinct from the original rows'
+UIDs.
 
-#### Architectural sketch (Phase 2 implementation)
+Primary variation line types:
+- **ADD** — a brand-new item not in the original BOQ.
+- **ADDITIONAL-QTY** — more quantity for an item that already exists
+  in the original BOQ (the common case once the original sanctioned
+  qty and its deviation tolerance are used up).
 
-A new doctype `Work Order Variation`:
-- Submittable parent
-- Links to parent Work Order Contract
-- Child table of "variation lines" — each line is either:
-  - ADD: a new BOQ row to introduce (with item_no, summary_head,
-    description, uom, qty, rate, deviation_limit_pct)
-  - MODIFY: changes to an existing BOQ row, referenced by
-    `boq_row_uid`, with new qty / new rate / new deviation_limit
-  - DELETE: marks an existing BOQ row (by `boq_row_uid`) as removed
-    going forward; historical RA Bills against that row remain valid
-- Each variation has its own `variation_number` (1, 2, 3...) per parent WO
-- On approval/submit: a controller hook updates the WO Contract's
-  derived `current_boq_state` (a computed view, not a stored field)
-  by replaying variations in order
-- RA Bill's `populate_items_from_boq` is updated to read from
-  `current_boq_state` (which = original BOQ + ADD lines − DELETE
-  lines, with MODIFY lines applied to qty/rate)
+DELETE and rate-revision are noted as possible future extensions but
+are not part of the initial build; the dominant operational cases at
+RGI are ADD and ADDITIONAL-QTY.
 
-#### What `boq_row_uid` does for this architecture
+#### Why this shape (vs amending the WO)
 
-The `boq_row_uid` field added to Work Order BOQ Item in Phase 1.5c.1 is
-the linchpin. Variations reference BOQ rows by UID, not by row name or
-item_no, so a variation's "modify row" or "delete row" instruction
-remains unambiguous even if the user later renumbers item_no for
-display purposes. RA Bill Items also reference rows by UID, so
-cumulative quantity history threads cleanly through variations.
+Because each variation is a separate document, approving one never
+touches the frozen WO. RA Bills already submitted against the original
+BOQ remain valid; no cascade cancellation is triggered. The WO is a
+sanctioned contract that never changes; variations are sanctioned
+add-ons; the consolidated report and printout stitch them into a
+single readable view at display time, not by mutating storage.
 
-#### What this means for Phase 1 / the dry-run period
+This also matches industry practice (CPWD / PWD and private
+construction both use change orders / variation orders as additive
+records against the original contract, never as a replacement),
+captures intent better than "WO-...-2 / WO-...-3" amend numbering,
+supports per-variation approval through RGI's engineering hierarchy,
+and keeps every sanctioned document — original WO and each VO — as a
+live, printable record rather than a cancelled docstatus=2 row.
 
-Until the Work Order Variation doctype is built (Phase 2), WO
-amendments are not supported through proper channels. The
-operational rule for the RGI dry-run:
+#### The billing allocation rule (the critical part)
 
-- A WO Contract MUST NOT be amended (cancelled + amended via
-  Frappe's native cycle) once any RA Bill has been generated
-  against it. The cascade cancellation would invalidate the RA
-  Bills and Purchase Invoices, requiring manual rebuild.
-- Pre-RA-Bill corrections (typos in contractor name, address, etc.)
-  CAN use Frappe's amend cycle safely.
-- Mid-contract scope changes during the dry-run period are
-  out-of-scope. Note them; the Phase 2 VO doctype handles them
-  properly.
+For an item that exists in BOTH the original BOQ and one or more
+variations, the engineer enters TOTAL CUMULATIVE work done for that
+item on the RA Bill — the same single-number UX as today. The system
+then auto-allocates that cumulative qty **left-to-right across
+scopes**: fill ORIGINAL first; only once the original sanctioned qty
+is exhausted does quantity spill into Variation 1; once Variation 1's
+sanctioned qty is exhausted, into Variation 2; and so on.
 
-This is a temporary Phase 1 constraint and is also recorded in
-Section 7 (Known limitations).
+"Exhausted" is tracked CUMULATIVELY across all prior RA Bills, not
+just within one bill. Each scope (original, var1, var2, ...) carries
+its own cumulative-billed-quantity, indexed by that scope's own
+`boq_row_uid`. The existing `_get_previous_cumulative_qty` machinery
+(Section 8.2) already queries by UID, so each scope's history threads
+cleanly without ambiguity.
+
+The user-visible consequence: a single qty entry **auto-splits into
+segregated billing lines** on the RA Bill — one line tagged to the
+original scope, one to each variation scope it spills into. The
+engineer enters one number; the system produces N lines (one per
+scope touched), each carrying its own scope identity and its scope's
+own rate and tax_pct. This preserves a clean original-vs-variation
+audit trail without burdening the user with manual splitting.
+
+For an item that exists ONLY in a variation (not in the original BOQ),
+billing is straightforward: it bills directly against that variation's
+scope, since there is no original quantity to exhaust first.
+
+#### Worked example
+
+Original BOQ row: Concrete 100 cum @ ₹5,000.
+Variation 1 adds: Concrete +50 cum @ ₹5,000 (total sanctioned now
+150 cum, split as 100 original + 50 variation-1).
+
+- **RA Bill 1.** Engineer enters cumulative 60 cum.
+  All 60 against ORIGINAL (original not yet exhausted; 40 cum of the
+  100 original sanctioned still unbilled). One billing line: 60 cum
+  original.
+- **RA Bill 2.** Engineer enters cumulative 120 cum (this period =
+  60 cum). Original has 40 cum left → 40 fills ORIGINAL (original now
+  exhausted at 100). The remaining 20 spills to VARIATION 1 (var1 now
+  at 20 of its 50). Two segregated billing lines: 40 original + 20
+  var1.
+- **RA Bill 3.** Engineer enters cumulative 140 cum (this period =
+  20 cum). Original already exhausted, so all 20 cum to VARIATION 1
+  (var1 now at 40 of 50). One billing line: 20 var1.
+
+The engineer typed three numbers (60, 120, 140) across three bills.
+The system produced four scope-tagged billing lines that correctly
+attribute work to original vs Variation 1, with each scope's
+cumulative usage tracked separately.
+
+#### Tax interaction
+
+Variation lines carry their own `tax_pct`, with the same four-field
+structure as original BOQ rows (`tax_pct`, `amount`, `tax_amount`,
+`amount_with_tax`; see Finding 1, captured in the Phase 1.5e per-row
+tax work).
+
+When billed quantity spills from original into a variation, the
+original portion uses the ORIGINAL row's `tax_pct` and the variation
+portion uses the VARIATION row's `tax_pct`. Each segregated billing
+line carries the tax rate of the scope it bills against — so a single
+qty entry can legitimately produce billing lines at different tax
+rates if the variation revised the rate (e.g. original at 18% and a
+later variation at 12% for the same item).
+
+Deviation enforcement remains qty-only and is applied **per scope**
+against that scope's sanctioned quantity. Tax never enters deviation,
+consistent with Section 4.4. So an original row at 100 cum with a 5%
+deviation limit allows up to 105 cum of original-scope billing; once
+that's exhausted, further billing requires a Variation 1 line for the
+item, which carries its own sanctioned qty and its own deviation
+tolerance.
+
+#### The consolidated view
+
+Two read-time surfaces present the WO + variations together; neither
+is stored on the WO Contract (preserving its immutability).
+
+- A **consolidated report** shows, per item:
+  `Original Qty | Variation 1 Qty | Variation 2 Qty | ... | Total Qty`,
+  plus the corresponding rates and amounts. Assembled at read time
+  from the WO + its approved variations.
+- The **Variation Order printout** uses the same column layout, so
+  the printed VO shows the item's history rather than just the
+  delta in isolation.
+- On the **WO Contract form**, a read-only linked-documents view
+  lists the variations raised against this WO (variation number,
+  status, date, value). This lets a user see "this WO has 3
+  variations" at a glance without violating WO immutability — it's
+  a query view over linked documents, not stored data.
+
+#### What `boq_row_uid` does here
+
+Variations reference original rows by item identity for display, but
+each scope keeps its OWN `boq_row_uid`, so each scope's cumulative
+billing history stays distinct and unambiguous even if `item_no` is
+renumbered for display. RA Bill Items already reference rows by UID
+(Phase 1.5c.2), so the segregated billing lines thread cleanly into
+the existing cumulative-quantity machinery without changes to its
+core shape — the allocator simply emits one RA Bill Item per scope
+touched, each pointing at its scope's UID.
+
+#### Build pieces
+
+The locked design above breaks into these implementation pieces, all
+to be drafted and reviewed before code lands:
+
+1. **Work Order Variation doctype** + child line table (submittable,
+   parent-linked to Work Order Contract, with the line structure and
+   ADD / ADDITIONAL-QTY types above).
+2. **Variation-aware RA Bill allocation logic** — the left-to-right
+   exhaustion algorithm, per-scope cumulative tracking via
+   `boq_row_uid`, auto-splitting of a single user qty entry into
+   segregated scope-tagged billing lines.
+3. **Consolidated report** assembling original + approved variations
+   into the per-item column view.
+4. **WO Contract form linked-variations view** — read-only listing
+   on the parent form.
+5. **Variation Order print format** matching the consolidated column
+   layout.
+
+#### Status note for the dry-run period
+
+Until the Variation Order doctype is built, the operational rule
+recorded in CLAUDE.md ("WO amendments during dry-run period") remains
+in force: a WO Contract MUST NOT be amended via Frappe's native cycle
+once any RA Bill exists against it, because the cascade would
+invalidate the downstream chain. Mid-contract scope changes wait for
+this design to land. See Section 7 (Known limitations) for the
+matching limitation entry.
 
 ### 4.8 Retention release split
 **Status:** Locked.
@@ -475,8 +571,9 @@ CLAUDE.md "App-shipped fixtures" and related sections.
 - No Measurement Book — cumulative quantities are manually entered on RA
   Bills. Acceptable for smaller projects; needed for larger ones.
 - No BOQ amendment workflow — Phase 2 will add this via a dedicated
-  Work Order Variation doctype (additive deltas to the original WO,
-  not contract replacement). See Section 4.7 for the locked
+  Work Order Variation doctype (separate submittable documents
+  alongside an immutable original WO, with left-to-right scope
+  allocation on RA Bills). See Section 4.7 for the locked
   architecture.
 - WO Contract cancellation/amendment cascades through linked RA
   Bills and Purchase Invoices. During the Phase 1 / dry-run period,
@@ -572,20 +669,23 @@ After Phase 1.5:
 
 1. **RGI dry-run** at one institution — pick a small project, exercise
    the post-1.5 build end-to-end, collect feedback before further work.
-2. **Phase 2: Work Order Variation doctype** — additive scope changes
-   to a submitted WO without modifying or cancelling it (added /
-   modified / deleted BOQ rows recorded as deltas; original WO stays
-   sacred; RA Bills compute current state by walking WO + approved
-   variations). See Section 4.7 for the locked architecture. Critical
+2. **Phase 2: Work Order Variation doctype** — scope changes to a
+   submitted WO without modifying or cancelling it. The original WO
+   stays frozen; each variation is a separate submittable document
+   with its own BOQ-style lines (ADD and ADDITIONAL-QTY); RA Bills
+   auto-allocate cumulative qty left-to-right across original →
+   variation 1 → variation 2 → ... and emit one segregated billing
+   line per scope touched, each carrying its scope's own rate and
+   tax_pct. See Section 4.7 for the locked architecture. Critical
    for mid-contract scope changes common in RGI's workflow, and the
    reason WOs currently can't be amended once any RA Bill exists.
 3. **Phase 2: Measurement Book** — MB doctype with per-WO toggle;
    MB-driven cumulative quantities on RA Bills (Model A — RA Bill is
    user-initiated, pulls from MB on demand).
-4. **Phase 2: Extra Items** — work outside original BOQ. Largely
-   subsumed by the Variation Order doctype (item 2); a "new BOQ row"
-   variation IS an extra item. Keep as a tracking row in case any
-   sub-feature falls outside the VO model.
+4. **Phase 2: Extra Items** — work outside original BOQ. Subsumed by
+   the Variation Order doctype (item 2): an ADD variation line IS an
+   extra item. Keep as a tracking row only in case any sub-feature
+   falls outside the VO model.
 5. **Phase 2: Payment Voucher integration** — Work Order Advance Register
    auto-sync with the dux_voucher app's Payment Voucher.
 6. **Phase 2/3: Final Bill, DLP, FIM, PBG** — end-of-project documents.
