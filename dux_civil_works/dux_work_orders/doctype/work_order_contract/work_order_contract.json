@@ -34,9 +34,10 @@
   "mobilization_advance_pct",
   "mobilization_recovery_pct",
   "cb_terms_1",
+  "dlp_months",
+  "other_advances_section",
   "material_advance_pct",
   "material_recovery_pct",
-  "dlp_months",
   "section_retention_release",
   "retention_release_on_final_bill",
   "cb_retention_1",
@@ -316,13 +317,20 @@
    "fieldtype": "Table",
    "label": "BOQ Items",
    "options": "Work Order BOQ Item"
+  },
+  {
+   "collapsible": 1,
+   "description": "Material advance is optional and unused by default at RGI. Leave at zero unless this contract includes a separate material advance against materials brought to site.",
+   "fieldname": "other_advances_section",
+   "fieldtype": "Section Break",
+   "label": "Other Advances (Optional)"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-05-18 18:04:13.553639",
+ "modified": "2026-05-21 18:42:54.012593",
  "modified_by": "Administrator",
  "module": "Dux Work Orders",
  "name": "Work Order Contract",
