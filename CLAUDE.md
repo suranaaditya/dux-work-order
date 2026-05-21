@@ -1175,3 +1175,28 @@ load the server-provided values are the source of truth.
 
 Trapped us in Phase 1.5c.4 → 1.5c.6 (live BOQ aggregation worked but
 made every saved doc appear "Not Saved").
+
+
+### WO amendments during dry-run period — operational rule
+
+Until the Work Order Variation doctype lands in Phase 2, the rule is:
+
+DO NOT amend or cancel a Work Order Contract once any Work Order
+RA Bill exists against it.
+
+Reason: Frappe's native amend cycle requires cancelling the WO. This
+cascades through linked RA Bills and Purchase Invoices — Frappe will
+block the WO cancellation until all downstream documents are cancelled
+first. Cancelling them invalidates their accounting entries and
+forces manual rebuild of the entire downstream chain.
+
+Pre-RA-Bill corrections (typos in contractor name, address, payment
+terms, etc.) CAN safely use Frappe's amend cycle — there are no
+downstream documents to cascade through.
+
+Mid-contract scope changes (additional qty beyond 5% deviation, new
+BOQ items, rate revisions, deletions) must wait for the Phase 2
+Variation Order doctype. The user should note these changes; we'll
+build the proper mechanism in Phase 2.
+
+See DESIGN.md Section 4.7 for the locked Phase 2 architecture.
