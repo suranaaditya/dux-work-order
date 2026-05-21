@@ -302,6 +302,88 @@ def run_smoke_test():
 		print("  Register mob recovered after bill1 cancel: " + str(reg.mobilization_recovered))
 		assert abs(reg.mobilization_recovered - 0) < 0.01
 
+		# ============================================================
+		# PHASE 8 - Tax canary (Finding 1 Part 1)
+		# ============================================================
+		# Verifies: per-row tax_pct, tax_amount, amount_with_tax;
+		# per-head aggregation of tax/with-tax; header dual totals;
+		# tax_pct=0 produces amount_with_tax == amount;
+		# two rows under the same head sum tax correctly.
+		print("\n--- Tax canary (per-row tax overlay) ---")
+		wo_tax = frappe.new_doc("Work Order Contract")
+		wo_tax.company = sample_company
+		wo_tax.supplier = sample_supplier
+		wo_tax.wo_date = frappe.utils.today()
+		wo_tax.work_title = "Tax canary - please delete"
+		wo_tax.retention_percentage = 5
+		wo_tax.mobilization_recovery_pct = 0
+		wo_tax.material_recovery_pct = 0
+		wo_tax.apply_labour_cess = 0
+		# Two rows under "Civil Construction" with DIFFERENT tax rates
+		# (tests per-row tax, not WO-level tax) and one under "Plumbing Works"
+		# with tax_pct=0 (tests the zero-tax path).
+		wo_tax.append("boq_items", {
+			"item_no": "1.1", "summary_head": HEAD_CIVIL,
+			"description": "Concrete @ 18%", "uom": UOM_VOLUME,
+			"estimated_qty": 100, "rate": 5000, "tax_pct": 18,
+		})
+		wo_tax.append("boq_items", {
+			"item_no": "1.2", "summary_head": HEAD_CIVIL,
+			"description": "Plaster @ 12%", "uom": UOM_AREA,
+			"estimated_qty": 50, "rate": 1500, "tax_pct": 12,
+		})
+		wo_tax.append("boq_items", {
+			"item_no": "2.1", "summary_head": HEAD_PLUMBING,
+			"description": "Pipe @ 0% (zero tax row)", "uom": UOM_LINEAR,
+			"estimated_qty": 10, "rate": 2000, "tax_pct": 0,
+		})
+		wo_tax.insert()
+		created_docs.append(("Work Order Contract", wo_tax.name))
+		print("  Tax-canary WO inserted: " + wo_tax.name)
+
+		# Row-level assertions
+		r1, r2, r3 = wo_tax.boq_items
+		# r1: 100 * 5000 = 500000, tax 18% = 90000, with_tax = 590000
+		assert abs(r1.amount - 500000) < 0.01, "r1.amount wrong: " + str(r1.amount)
+		assert abs(r1.tax_amount - 90000) < 0.01, "r1.tax_amount wrong: " + str(r1.tax_amount)
+		assert abs(r1.amount_with_tax - 590000) < 0.01, "r1.amount_with_tax wrong: " + str(r1.amount_with_tax)
+		# r2: 50 * 1500 = 75000, tax 12% = 9000, with_tax = 84000
+		assert abs(r2.amount - 75000) < 0.01, "r2.amount wrong: " + str(r2.amount)
+		assert abs(r2.tax_amount - 9000) < 0.01, "r2.tax_amount wrong: " + str(r2.tax_amount)
+		assert abs(r2.amount_with_tax - 84000) < 0.01, "r2.amount_with_tax wrong"
+		# r3: 10 * 2000 = 20000, tax 0% = 0, with_tax = 20000 (= amount)
+		assert abs(r3.amount - 20000) < 0.01, "r3.amount wrong"
+		assert abs(r3.tax_amount - 0) < 0.01, "r3 tax_amount should be 0"
+		assert abs(r3.amount_with_tax - r3.amount) < 0.01, "tax_pct=0 row: with_tax must equal amount"
+		print("  Row-level tax: r1 (18%) = 90000, r2 (12%) = 9000, r3 (0%) = 0 — OK")
+
+		# Per-head summary aggregation
+		heads = {s.summary_head: s for s in wo_tax.summary_items}
+		civ = heads[HEAD_CIVIL]
+		plm = heads[HEAD_PLUMBING]
+		# Civil: amount = 500000 + 75000 = 575000, tax = 90000 + 9000 = 99000, with_tax = 674000
+		assert abs(civ.amount - 575000) < 0.01, "civil head amount wrong: " + str(civ.amount)
+		assert abs(civ.tax_amount - 99000) < 0.01, "civil head tax_amount wrong: " + str(civ.tax_amount)
+		assert abs(civ.amount_with_tax - 674000) < 0.01, "civil head with_tax wrong"
+		# Plumbing: 20000 / 0 / 20000
+		assert abs(plm.amount - 20000) < 0.01
+		assert abs(plm.tax_amount - 0) < 0.01
+		assert abs(plm.amount_with_tax - 20000) < 0.01
+		print("  Per-head: Civil 575000/99000/674000, Plumbing 20000/0/20000 — OK")
+
+		# Header dual totals
+		# total_amount = 575000 + 20000 = 595000
+		# total_tax_amount = 99000 + 0 = 99000
+		# total_amount_with_tax = 694000
+		assert abs(wo_tax.total_amount - 595000) < 0.01, "total_amount wrong: " + str(wo_tax.total_amount)
+		assert abs(wo_tax.total_tax_amount - 99000) < 0.01, "total_tax_amount wrong: " + str(wo_tax.total_tax_amount)
+		assert abs(wo_tax.total_amount_with_tax - 694000) < 0.01, "total_amount_with_tax wrong: " + str(wo_tax.total_amount_with_tax)
+		print("  Header: total_amount=595000, total_tax_amount=99000, total_amount_with_tax=694000 — OK")
+
+		# Submit to verify validate() flow still passes with tax fields
+		wo_tax.submit()
+		print("  Submitted: " + wo_tax.name + " (tax canary clean)")
+
 		print("\n" + "=" * 70)
 		print("ALL PHASES PASSED - regression smoke test successful")
 		print("=" * 70)

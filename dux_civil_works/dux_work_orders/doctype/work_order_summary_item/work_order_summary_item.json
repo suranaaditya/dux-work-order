@@ -9,6 +9,8 @@
   "summary_head",
   "description",
   "amount",
+  "tax_amount",
+  "amount_with_tax",
   "remarks"
  ],
  "fields": [
@@ -43,13 +45,27 @@
    "fieldname": "remarks",
    "fieldtype": "Small Text",
    "label": "Remarks"
+  },
+  {
+   "fieldname": "tax_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Tax Amount",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amount_with_tax",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Amount (incl. tax)",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-04-29 11:03:58.459391",
+ "modified": "2026-05-21 19:18:28.076358",
  "modified_by": "Administrator",
  "module": "Dux Work Orders",
  "name": "Work Order Summary Item",

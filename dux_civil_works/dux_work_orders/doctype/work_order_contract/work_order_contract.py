@@ -4,6 +4,7 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
+from frappe.utils import flt
 
 
 class WorkOrderContract(Document):
@@ -20,17 +21,30 @@ class WorkOrderContract(Document):
 		self.validate_schedule_dates()
 
 	def _compute_boq_row_amounts(self):
-		"""Set amount = estimated_qty * rate on each boq_items row.
+		"""Set amount = estimated_qty * rate on each boq_items row, then
+		compute the per-row tax overlay.
 
 		Phase 1.5c.2: this used to live on the deleted Civil Work Order
-		BOQ controller; moved here when BOQ folded into Work Order
-		Contract."""
+		BOQ controller; moved here when BOQ folded into Work Order Contract.
+		Finding 1 Part 1 (RGI dry-run): extended to also compute tax_amount
+		(amount * tax_pct/100) and amount_with_tax (amount + tax_amount).
+		Each row's tax_amount and amount_with_tax are rounded to 2 decimals
+		via flt(x, 2) BEFORE the aggregation step, so summary totals are
+		sums of the rounded row values — the document is internally
+		consistent to the eye (rows visibly add up to totals).
+		The existing `amount` semantics are PRESERVED as WITHOUT-tax, so
+		all existing reads (deviation aggregation, downstream RA Bill
+		copy) keep working unchanged.
+		"""
 		if not self.boq_items:
 			return
 		for row in self.boq_items:
 			qty = float(row.estimated_qty or 0)
 			rate = float(row.rate or 0)
-			row.amount = qty * rate
+			row.amount = flt(qty * rate, 2)
+			tax_pct = float(row.tax_pct or 0)
+			row.tax_amount = flt(row.amount * tax_pct / 100.0, 2)
+			row.amount_with_tax = flt(row.amount + row.tax_amount, 2)
 
 	def _set_default_boq_deviation_limits(self):
 		"""For BOQ rows where deviation_limit_pct is left unset (None),
@@ -74,19 +88,25 @@ class WorkOrderContract(Document):
 
 	def _aggregate_summary_from_boq(self):
 		"""When boq_items has rows, derive summary_items from them.
-		Groups BOQ rows by summary_head Item, sums amounts.
+		Groups BOQ rows by summary_head Item, sums amount and tax_amount
+		in parallel.
 
 		Backward compatibility: if boq_items is empty, summary_items is
-		left untouched (old-flow Work Orders work as before)."""
+		left untouched (old-flow Work Orders work as before).
+
+		Finding 1 Part 1: also accumulates per-head tax_amount and writes
+		amount_with_tax = amount + tax_amount on each summary row."""
 		if not self.boq_items:
 			return  # old flow, summary_items as entered by user
 
 		from collections import defaultdict
 		totals = defaultdict(float)
+		tax_totals = defaultdict(float)
 		for boq_row in self.boq_items:
 			if not boq_row.summary_head:
 				continue
-			totals[boq_row.summary_head] += float(boq_row.amount or 0)
+			totals[boq_row.summary_head] += flt(boq_row.amount or 0, 2)
+			tax_totals[boq_row.summary_head] += flt(boq_row.tax_amount or 0, 2)
 
 		# Preserve order of first occurrence in boq_items for stable UI
 		seen_heads = []
@@ -96,9 +116,13 @@ class WorkOrderContract(Document):
 
 		self.summary_items = []
 		for head in seen_heads:
+			base = flt(totals[head], 2)
+			tax = flt(tax_totals[head], 2)
 			self.append("summary_items", {
 				"summary_head": head,
-				"amount": totals[head],
+				"amount": base,
+				"tax_amount": tax,
+				"amount_with_tax": flt(base + tax, 2),
 			})
 
 	def _validate_boq_summary_heads_are_service_items(self):
@@ -133,10 +157,20 @@ class WorkOrderContract(Document):
 		self.prefill_terms_from_settings()
 
 	def set_total_amount(self):
+		"""Sum summary_items into the three header totals.
+
+		total_amount stays semantically WITHOUT-tax (unchanged from
+		Phase 1.5). total_tax_amount and total_amount_with_tax are the
+		Finding 1 Part 1 additions. All three are sums of the already-
+		rounded summary row values, so the visible math adds up."""
 		total = 0.0
+		total_tax = 0.0
 		for row in (self.summary_items or []):
-			total += float(row.amount or 0)
-		self.total_amount = total
+			total += flt(row.amount or 0, 2)
+			total_tax += flt(row.tax_amount or 0, 2)
+		self.total_amount = flt(total, 2)
+		self.total_tax_amount = flt(total_tax, 2)
+		self.total_amount_with_tax = flt(total + total_tax, 2)
 
 	def validate_summary_items(self):
 		if not self.summary_items:

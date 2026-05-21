@@ -29,6 +29,8 @@
   "summary_items",
   "section_totals",
   "total_amount",
+  "total_tax_amount",
+  "total_amount_with_tax",
   "section_terms",
   "retention_percentage",
   "mobilization_advance_pct",
@@ -324,13 +326,25 @@
    "fieldname": "other_advances_section",
    "fieldtype": "Section Break",
    "label": "Other Advances (Optional)"
+  },
+  {
+   "fieldname": "total_tax_amount",
+   "fieldtype": "Currency",
+   "label": "Total Tax Amount",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_amount_with_tax",
+   "fieldtype": "Currency",
+   "label": "Total Work Order Amount (incl. tax)",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-05-21 18:42:54.012593",
+ "modified": "2026-05-21 19:18:28.238234",
  "modified_by": "Administrator",
  "module": "Dux Work Orders",
  "name": "Work Order Contract",
