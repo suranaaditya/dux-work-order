@@ -4,6 +4,7 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
+from frappe.utils import flt
 
 from dux_civil_works.dux_work_orders.doctype.work_order_advance_register.work_order_advance_register import (
 	get_or_create_register,
@@ -18,12 +19,15 @@ class WorkOrderRABill(Document):
 
 	def before_insert(self):
 		self.assign_bill_number()
-		self.populate_items_from_boq()
+		self.populate_bill_entries_from_scope_map()
 
 	def validate(self):
 		self.validate_wo_consistency()
 		self.validate_period_dates()
-		self.compute_per_line_quantities()
+		# Allocator: read bill_entries (one row per item, with engineer's
+		# cumulative qty), split left-to-right across original + variation
+		# scopes, regenerate self.items per-scope. See DESIGN.md 4.7.
+		self._allocate_and_generate_items()
 		self.compute_gross_this_bill()
 		self.suggest_deductions()
 		self.compute_totals_and_net_payable()
@@ -60,48 +64,185 @@ class WorkOrderRABill(Document):
 		)
 		self.bill_number = (prior or 0) + 1
 
-	def populate_items_from_boq(self):
-		"""Populate RA Bill items by reading BOQ rows directly from the
-		parent Work Order Contract's embedded boq_items child table.
+	# ============================================================
+	# Scope map — the variation-aware shape of the linked WO
+	# ============================================================
 
-		Phase 1.5c.2: there is no longer a separate BOQ document; BOQ
-		rows live on the Work Order Contract."""
+	def _build_scope_map(self):
+		"""Return the ordered item -> scopes structure for the linked WO,
+		joined with all docstatus=1 Work Order Variation docs.
+
+		Each item is keyed by either:
+		- the original BOQ row's boq_row_uid (for original-rooted items),
+		  optionally extended by 'Additional Qty' variation lines, or
+		- a 'New Item' variation line's own boq_row_uid (for standalone
+		  items introduced by a variation).
+
+		Each scope is a dict:
+		    {uid, cap, rate, tax_pct, deviation_limit_pct,
+		     item_no, summary_head, description, uom, source}
+		where source is 'Original' or 'Variation N'.
+
+		Returns a list of {item_key, item_no, summary_head, description,
+		uom, scopes} preserving original BOQ order first, then New-Item-
+		only items in (variation_number, row idx) order. See DESIGN.md
+		Section 4.7.
+		"""
+		items = []
+		items_by_key = {}
+
 		if not self.civil_work_order:
-			return
-		if self.items:
-			return
+			return items
 
 		wo = frappe.get_doc("Work Order Contract", self.civil_work_order)
-		if not wo.boq_items:
-			frappe.throw(_(
-				"Work Order Contract {0} has no BOQ items. "
-				"Add BOQ rows to the Work Order before creating a Running Account Bill."
-			).format(wo.name))
 
-		for boq in wo.boq_items:
-			prev_cum = self._get_previous_cumulative_qty(boq.boq_row_uid)
-			self.append("items", {
-				"boq_item_ref": boq.name,
-				"boq_row_uid": boq.boq_row_uid,
+		# 1. Seed with each original BOQ row.
+		for boq in (wo.boq_items or []):
+			key = boq.boq_row_uid
+			if not key:
+				continue
+			item = {
+				"item_key": key,
 				"item_no": boq.item_no,
 				"summary_head": boq.summary_head,
 				"description": boq.description,
 				"uom": boq.uom,
-				"estimated_qty": boq.estimated_qty,
-				"rate": boq.rate,
-				"deviation_limit_pct": boq.deviation_limit_pct,
-				"previous_cumulative_qty": prev_cum,
-				"cumulative_qty": prev_cum,
-				"this_bill_qty": 0,
-				"this_bill_amount": 0,
-			})
+				"scopes": [{
+					"uid": key,
+					"cap": float(boq.estimated_qty or 0),
+					"rate": float(boq.rate or 0),
+					"tax_pct": float(boq.tax_pct or 0),
+					"deviation_limit_pct": float(boq.deviation_limit_pct or 0),
+					"item_no": boq.item_no,
+					"summary_head": boq.summary_head,
+					"description": boq.description,
+					"uom": boq.uom,
+					"source": "Original",
+				}],
+			}
+			items.append(item)
+			items_by_key[key] = item
 
-	def _get_previous_cumulative_qty(self, boq_row_uid):
-		"""Look up the most recent submitted cumulative_qty for the same
-		logical BOQ row on the same Work Order. Matches on boq_row_uid
-		(stable across WO amendments) rather than the row's child-table
-		name (which changes on amendment)."""
-		if not boq_row_uid or not self.civil_work_order:
+		# 2. Walk approved variations in variation_number order; append
+		#    Additional Qty scopes to their original-rooted items, and
+		#    create a standalone item per New Item line.
+		variations = frappe.get_all(
+			"Work Order Variation",
+			filters={"work_order_contract": self.civil_work_order, "docstatus": 1},
+			fields=["name", "variation_number"],
+			order_by="variation_number asc",
+		)
+		for v in variations:
+			vdoc = frappe.get_doc("Work Order Variation", v.name)
+			source_tag = f"Variation {v.variation_number}"
+			for vi in (vdoc.variation_items or []):
+				if not vi.boq_row_uid:
+					continue
+				scope_entry = {
+					"uid": vi.boq_row_uid,
+					"cap": float(vi.qty or 0),
+					"rate": float(vi.rate or 0),
+					"tax_pct": float(vi.tax_pct or 0),
+					"deviation_limit_pct": float(vi.deviation_limit_pct or 0),
+					"item_no": vi.item_no,
+					"summary_head": vi.summary_head,
+					"description": vi.description,
+					"uom": vi.uom,
+					"source": source_tag,
+				}
+				if vi.line_type == "Additional Qty":
+					root = items_by_key.get(vi.original_boq_row_uid)
+					if not root:
+						# Shouldn't happen — variation validate() guarantees
+						# original_boq_row_uid matches a WO BOQ row. Skip
+						# defensively if the WO has changed.
+						continue
+					root["scopes"].append(scope_entry)
+				elif vi.line_type == "New Item":
+					new_item = {
+						"item_key": vi.boq_row_uid,
+						"item_no": vi.item_no,
+						"summary_head": vi.summary_head,
+						"description": vi.description,
+						"uom": vi.uom,
+						"scopes": [scope_entry],
+					}
+					items.append(new_item)
+					items_by_key[vi.boq_row_uid] = new_item
+				else:
+					# Future line types (DELETE/rate-revision) — skip for now
+					continue
+
+		return items
+
+	def populate_bill_entries_from_scope_map(self):
+		"""Build/refresh bill_entries from the scope map: one row per item.
+
+		Idempotent: existing cumulative_qty and remarks are preserved for
+		any item_key already present; new items are appended with
+		cumulative_qty = 0; orphaned bill_entries (items no longer in the
+		scope map) are dropped.
+		"""
+		if not self.civil_work_order:
+			return
+
+		scope_items = self._build_scope_map()
+		if not scope_items:
+			frappe.throw(_(
+				"Work Order Contract {0} has no BOQ items. "
+				"Add BOQ rows to the Work Order before creating a Running Account Bill."
+			).format(self.civil_work_order))
+
+		# Index existing bill_entries by item_key (preserve user edits)
+		existing_by_key = {}
+		for be in (self.bill_entries or []):
+			if be.item_key:
+				existing_by_key[be.item_key] = be
+
+		new_rows = []
+		for item in scope_items:
+			total_cap = sum(s["cap"] for s in item["scopes"])
+			prior = existing_by_key.get(item["item_key"])
+			# Default cumulative_qty to Σ prior across this item's scopes.
+			# That matches the user's mental model — they see what was billed
+			# before and bump it upward for this bill. Initializing to 0
+			# would also (incorrectly) trigger the Edge 1 monotonic check on
+			# the very first validate() after insert, because the allocator
+			# would see T=0 < Σprior. See _allocate_and_generate_items.
+			sum_prior = sum(
+				self._get_previous_cumulative_qty(s["uid"]) for s in item["scopes"]
+			)
+			if prior is not None:
+				# Preserve any value the user already typed; if they hadn't
+				# touched it yet (cumulative_qty <= sum_prior), bump to
+				# sum_prior so the bill remains valid.
+				preserved = float(prior.cumulative_qty or 0)
+				default_cum = max(preserved, sum_prior)
+			else:
+				default_cum = sum_prior
+			row = {
+				"item_key": item["item_key"],
+				"item_no": item["item_no"],
+				"summary_head": item["summary_head"],
+				"description": item["description"],
+				"uom": item["uom"],
+				"total_sanctioned_qty": total_cap,
+				"cumulative_qty": default_cum,
+				"remarks": (prior.remarks if prior else None),
+			}
+			new_rows.append(row)
+
+		self.set("bill_entries", [])
+		for r in new_rows:
+			self.append("bill_entries", r)
+
+	def _get_previous_cumulative_qty(self, scope_uid):
+		"""Cumulative qty billed against THIS scope in prior submitted
+		bills on the same WO. Matches on boq_row_uid (= scope UID); each
+		scope's prior cumulative is tracked independently. See DESIGN.md
+		4.7 'What boq_row_uid does here'.
+		"""
+		if not scope_uid or not self.civil_work_order:
 			return 0
 		result = frappe.db.sql("""
 			SELECT IFNULL(MAX(rb_item.cumulative_qty), 0) AS qty
@@ -111,19 +252,133 @@ class WorkOrderRABill(Document):
 			  AND rb.civil_work_order = %s
 			  AND rb.docstatus = 1
 			  AND rb.name != %s
-		""", (boq_row_uid, self.civil_work_order, self.name or ""), as_dict=True)
+		""", (scope_uid, self.civil_work_order, self.name or ""), as_dict=True)
 		return float(result[0].qty if result else 0)
+
+	# ============================================================
+	# The allocator — the financial core
+	# ============================================================
+
+	def _allocate_and_generate_items(self):
+		"""For each bill_entries row, distribute the entered cumulative
+		qty left-to-right across the item's ordered scopes (original
+		first, then variation 1, then variation 2 ...), then generate
+		one self.items row per scope where this_bill_qty > 0.
+
+		Algorithm — for an item with ordered scopes s1..sk, sanctioned
+		caps cap_1..cap_k, and entered cumulative T:
+
+		  EDGE 1: if T < sum(prior_i across scopes), throw — monotonic
+		          forward only (cannot un-bill prior work).
+
+		  Distribute T:
+		     remaining = T
+		     for si in s1..sk:
+		         target_i = min(remaining, cap_i)
+		         remaining -= target_i
+		  EDGE 2: if remaining > 0 after the last scope, add it to the
+		          last scope's target. The deviation check at submit
+		          will then catch the overflow on that scope.
+
+		  EDGE 3: for each scope where this_bill_i = target_i - prior_i
+		          > 0, append a row to self.items tagged with this scope.
+		          Scopes with this_bill_i == 0 are omitted from this bill.
+
+		Each generated row carries the SCOPE'S OWN rate, tax_pct,
+		deviation_limit_pct — so one cumulative entry can produce lines
+		at different tax rates if the variation revised tax_pct. The
+		row's estimated_qty is set to the SCOPE's cap (not the
+		original's), so the existing per-row deviation check enforces
+		the correct ceiling for each scope. See DESIGN.md 4.7.
+		"""
+		# Always rebuild self.items from the bill_entries + scope map.
+		# Existing items rows are discarded (they are generated, not
+		# user-authored).
+		if not self.civil_work_order:
+			self.set("items", [])
+			return
+		if not self.bill_entries:
+			self.set("items", [])
+			return
+
+		scope_items = self._build_scope_map()
+		scopes_by_key = {it["item_key"]: it["scopes"] for it in scope_items}
+
+		generated = []
+		for be_idx, be in enumerate(self.bill_entries, start=1):
+			scopes = scopes_by_key.get(be.item_key)
+			if not scopes:
+				frappe.throw(_(
+					"Bill entry row {0}: item_key '{1}' does not match any BOQ "
+					"row or approved variation on Work Order {2}. The Work "
+					"Order may have changed since this bill was drafted; "
+					"refresh the bill entries."
+				).format(be_idx, be.item_key, self.civil_work_order))
+
+			T = float(be.cumulative_qty or 0)
+			priors = [self._get_previous_cumulative_qty(s["uid"]) for s in scopes]
+			sum_prior = sum(priors)
+
+			# EDGE 1: monotonic — cannot enter cumulative less than already billed.
+			if T + 0.0001 < sum_prior:
+				frappe.throw(_(
+					"Bill entry row {0} (item {1} '{2}'): entered cumulative "
+					"qty ({3}) is less than the cumulative already billed "
+					"across this item's scopes ({4}). Cumulative quantities "
+					"are monotonic forward only."
+				).format(be_idx, be.item_no or "?", be.description or be.item_key,
+				         T, sum_prior))
+
+			# Left-to-right distribution.
+			remaining = T
+			targets = []
+			for s in scopes:
+				take = min(remaining, s["cap"])
+				if take < 0:
+					take = 0
+				targets.append(take)
+				remaining -= take
+			# EDGE 2: overflow piles onto the last scope; deviation check
+			# at submit will reject if it exceeds cap * (1+deviation/100).
+			if remaining > 0.0001 and targets:
+				targets[-1] += remaining
+
+			# EDGE 3: emit one row per scope with this_bill_qty > 0.
+			for s, target, prior in zip(scopes, targets, priors):
+				this_bill = target - prior
+				if this_bill <= 0.0001:
+					continue
+				amount = flt(this_bill * s["rate"], 2)
+				tax_amount = flt(amount * s["tax_pct"] / 100.0, 2)
+				generated.append({
+					"boq_row_uid": s["uid"],
+					"scope_source": s["source"],
+					"item_no": s["item_no"],
+					"summary_head": s["summary_head"],
+					"description": s["description"],
+					"uom": s["uom"],
+					"estimated_qty": s["cap"],
+					"deviation_limit_pct": s["deviation_limit_pct"],
+					"rate": s["rate"],
+					"tax_pct": s["tax_pct"],
+					"previous_cumulative_qty": prior,
+					"cumulative_qty": target,
+					"this_bill_qty": this_bill,
+					"this_bill_amount": amount,
+					"this_bill_tax_amount": tax_amount,
+					"this_bill_amount_with_tax": flt(amount + tax_amount, 2),
+				})
+
+		self.set("items", [])
+		for row in generated:
+			self.append("items", row)
 
 	# ============================================================
 	# validate helpers
 	# ============================================================
 
 	def validate_wo_consistency(self):
-		"""Linked Work Order Contract must exist and be Submitted.
-
-		Phase 1.5c.2: the BOQ-specific docstatus check is gone — there
-		is no separate BOQ document, so the WO docstatus is the only
-		thing to validate here."""
+		"""Linked Work Order Contract must exist and be Submitted."""
 		if not self.civil_work_order:
 			return
 		wo_docstatus = frappe.db.get_value(
@@ -138,22 +393,22 @@ class WorkOrderRABill(Document):
 		if self.period_from and self.period_to and self.period_to < self.period_from:
 			frappe.throw(_("Period To cannot be earlier than Period From."))
 
-	def compute_per_line_quantities(self):
-		for row in (self.items or []):
-			cum = float(row.cumulative_qty or 0)
-			prev = float(row.previous_cumulative_qty or 0)
-			if cum < prev:
-				frappe.throw(_(
-					"Row {0} ({1}): Cumulative qty ({2}) cannot be less than previous "
-					"cumulative qty ({3})."
-				).format(row.idx, row.description, cum, prev))
-			row.this_bill_qty = cum - prev
-			row.this_bill_amount = row.this_bill_qty * float(row.rate or 0)
-
 	def compute_gross_this_bill(self):
-		self.gross_this_bill = sum(
-			float(row.this_bill_amount or 0) for row in (self.items or [])
-		)
+		"""Sum the generated per-scope items into header gross totals.
+
+		gross_this_bill is the WITHOUT-tax sum (deductions compute on
+		this base, matching the existing/locked net-payable structure).
+		gross_this_bill_with_tax is the with-tax sum, available for
+		print and for downstream PI integration where per-scope tax
+		rates may differ.
+		"""
+		gross = 0.0
+		gross_wt = 0.0
+		for row in (self.items or []):
+			gross += float(row.this_bill_amount or 0)
+			gross_wt += float(row.this_bill_amount_with_tax or 0)
+		self.gross_this_bill = flt(gross, 2)
+		self.gross_this_bill_with_tax = flt(gross_wt, 2)
 
 	# ============================================================
 	# Deduction suggestion engine
@@ -285,6 +540,14 @@ class WorkOrderRABill(Document):
 	# ============================================================
 
 	def enforce_deviation_limits(self):
+		"""Per-scope deviation enforcement on the GENERATED items.
+
+		Each generated row carries estimated_qty = scope cap and
+		deviation_limit_pct = scope's own limit. So this iteration
+		correctly enforces deviation per scope (original separately
+		from each variation scope). For variation scopes, the cap is
+		the variation line's qty, not the original's estimated_qty.
+		"""
 		offenders = []
 		for row in (self.items or []):
 			est = float(row.estimated_qty or 0)
@@ -294,15 +557,15 @@ class WorkOrderRABill(Document):
 				continue
 			ceiling = est * (1 + limit_pct / 100.0)
 			if cum > ceiling + 0.0001:
-				offenders.append((row.idx, row.description, cum, ceiling, limit_pct))
+				offenders.append((row.idx, row.description, row.scope_source, cum, ceiling, limit_pct))
 		if offenders:
 			lines = "\n".join(
-				f"  Row {idx} ({desc}): cum {cum} > ceiling {ceiling:.3f} ({limit}% over BOQ)"
-				for (idx, desc, cum, ceiling, limit) in offenders
+				f"  Row {idx} ({desc}, {scope}): cum {cum} > ceiling {ceiling:.3f} ({limit}% over sanctioned)"
+				for (idx, desc, scope, cum, ceiling, limit) in offenders
 			)
 			frappe.throw(_(
 				"Deviation limit exceeded on the following lines. "
-				"Raise an Amendment before submitting this bill.\n{0}"
+				"Raise an Amendment / additional Variation before submitting this bill.\n{0}"
 			).format(lines))
 
 	def enforce_recovery_caps_against_register(self):

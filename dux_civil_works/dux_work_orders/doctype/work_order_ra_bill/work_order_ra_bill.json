@@ -22,10 +22,13 @@
   "project",
   "work_title",
   "section_boq_ref",
+  "section_bill_entries",
+  "bill_entries",
   "section_items",
   "items",
   "section_totals",
   "gross_this_bill",
+  "gross_this_bill_with_tax",
   "total_deductions",
   "cb_totals_1",
   "total_additions",
@@ -162,7 +165,8 @@
    "fieldname": "items",
    "fieldtype": "Table",
    "label": "RA Bill Items",
-   "options": "Work Order RA Bill Item"
+   "options": "Work Order RA Bill Item",
+   "read_only": 1
   },
   {
    "fieldname": "section_totals",
@@ -250,13 +254,33 @@
    "label": "Billing Status",
    "options": "Draft\nPending Approval\nSubmitted\nPartially Invoiced\nFully Invoiced\nClosed\nCancelled",
    "read_only": 1
+  },
+  {
+   "description": "Enter the engineer-measured CUMULATIVE quantity done as of this bill for each item. If the parent Work Order has approved variations, your single entry per item is auto-allocated left-to-right across original and variation scopes by validate(); the per-scope breakdown appears in 'Bill Items' below.",
+   "fieldname": "section_bill_entries",
+   "fieldtype": "Section Break",
+   "label": "Bill Entries (one per item \u2014 enter cumulative qty here)"
+  },
+  {
+   "fieldname": "bill_entries",
+   "fieldtype": "Table",
+   "label": "Bill Entries",
+   "options": "Work Order RA Bill Entry"
+  },
+  {
+   "description": "Sum of per-scope this_bill_amount_with_tax across the generated items table. Reflects per-scope tax_pct (original and variations may use different rates).",
+   "fieldname": "gross_this_bill_with_tax",
+   "fieldtype": "Currency",
+   "label": "Gross This Bill (incl. tax)",
+   "options": "company_currency",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-05-18 13:17:43.517975",
+ "modified": "2026-05-21 21:17:46.780105",
  "modified_by": "Administrator",
  "module": "Dux Work Orders",
  "name": "Work Order RA Bill",
