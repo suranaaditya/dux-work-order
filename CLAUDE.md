@@ -1200,3 +1200,38 @@ Variation Order doctype. The user should note these changes; we'll
 build the proper mechanism in Phase 2.
 
 See DESIGN.md Section 4.7 for the locked Phase 2 architecture.
+
+
+### Field reordering — use field_order, not idx (Finding 1 learning)
+
+In current Frappe (16.x on this bench), the DocType JSON's `field_order`
+array is authoritative for form layout. Setting individual DocField `idx`
+values does NOT reliably reorder the displayed form — even when both the
+list order in `doc.fields` and each field's `idx` are updated, Frappe
+persists the original append-order in the JSON `fields` array and
+relies on `field_order` for display.
+
+When repositioning fields (e.g. inserting a new column between two
+existing ones):
+
+- Append the new field(s) via `doc.append("fields", {...})` and save.
+- Re-fetch the DocType, then mutate the in-memory `doc.fields` list in
+  place using `.remove()` / `.insert()` to put the new fields at the
+  desired positions.
+- Renumber `f.idx` over the reordered list (for consistency with the
+  list order).
+- Save again. Frappe writes the on-disk JSON's `field_order` array
+  reflecting the desired sequence — that's what controls the form.
+
+Verify after save by reading the JSON's `field_order` array (NOT the
+order of objects in the `fields` array, which may stay in append order).
+
+Earlier Phase 1.5c.3 used an idx-only reorder and it appeared to work —
+that was for a small reorder where the result happened to coincide with
+Frappe's normalization. For Finding 1 Part 1 the idx-only approach
+visibly failed (tax fields ended up at the end of the JSON fields array
+even though their idx values were lower); only the field_order array
+mutation produced correct display order.
+
+The reliable mechanism going forward: in-place list-mutation +
+field_order verification on the JSON.
