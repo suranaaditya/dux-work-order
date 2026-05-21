@@ -1,0 +1,160 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-05-21 20:49:00.188365",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "line_type",
+  "original_boq_row_uid",
+  "item_no",
+  "summary_head",
+  "description",
+  "uom",
+  "qty",
+  "rate",
+  "tax_pct",
+  "amount",
+  "tax_amount",
+  "amount_with_tax",
+  "deviation_limit_pct",
+  "remarks",
+  "boq_row_uid"
+ ],
+ "fields": [
+  {
+   "columns": 1,
+   "description": "'Additional Qty' = more qty for an item already in the original BOQ. 'New Item' = brand-new item not in the original BOQ.",
+   "fieldname": "line_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Line Type",
+   "options": "Additional Qty\nNew Item",
+   "reqd": 1
+  },
+  {
+   "description": "For Additional Qty lines: boq_row_uid of the original BOQ row this scope extends. For New Item lines: leave blank (auto-cleared on save).",
+   "fieldname": "original_boq_row_uid",
+   "fieldtype": "Data",
+   "label": "Original BOQ Row UID"
+  },
+  {
+   "columns": 1,
+   "fieldname": "item_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Item No"
+  },
+  {
+   "columns": 2,
+   "description": "Service category from Item Group 'Work Order Items'.",
+   "fieldname": "summary_head",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Summary Head",
+   "link_filters": "[[\"Item\", \"item_group\", \"=\", \"Work Order Items\"]]",
+   "options": "Item",
+   "reqd": 1
+  },
+  {
+   "columns": 3,
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Description",
+   "reqd": 1
+  },
+  {
+   "columns": 1,
+   "fieldname": "uom",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "UOM",
+   "options": "UOM",
+   "reqd": 1
+  },
+  {
+   "columns": 1,
+   "fieldname": "qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Qty",
+   "precision": "3",
+   "reqd": 1
+  },
+  {
+   "columns": 1,
+   "fieldname": "rate",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Rate",
+   "options": "company_currency",
+   "reqd": 1
+  },
+  {
+   "description": "Per-row tax percentage. 0 means no tax on this row.",
+   "fieldname": "tax_pct",
+   "fieldtype": "Percent",
+   "in_list_view": 1,
+   "label": "Tax %"
+  },
+  {
+   "columns": 1,
+   "description": "Auto-calculated as qty x rate (WITHOUT tax).",
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Amount",
+   "options": "company_currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "tax_amount",
+   "fieldtype": "Currency",
+   "label": "Tax Amount",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amount_with_tax",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Amount (incl. tax)",
+   "read_only": 1
+  },
+  {
+   "description": "This scope's own deviation tolerance for additional billing against the variation line.",
+   "fieldname": "deviation_limit_pct",
+   "fieldtype": "Percent",
+   "label": "Deviation Limit %"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  },
+  {
+   "description": "Stable UUID for this variation line. Distinct from any original BOQ row's UID; RA Bill Items reference this UID for variation-scope billing.",
+   "fieldname": "boq_row_uid",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "BOQ Row UID",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-05-21 20:49:00.188365",
+ "modified_by": "Administrator",
+ "module": "Dux Work Orders",
+ "name": "Work Order Variation Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

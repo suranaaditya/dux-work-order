@@ -1,0 +1,206 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "hash",
+ "creation": "2026-05-21 20:50:58.199761",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "section_header",
+  "work_order_contract",
+  "variation_number",
+  "variation_date",
+  "cb_header_1",
+  "company",
+  "supplier",
+  "section_reason",
+  "reason_for_change",
+  "section_lines",
+  "variation_items",
+  "section_totals",
+  "total_amount",
+  "total_tax_amount",
+  "total_amount_with_tax",
+  "section_meta",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_header",
+   "fieldtype": "Section Break"
+  },
+  {
+   "description": "The parent Work Order this variation is raised against. The original WO is never modified by approving this variation; see DESIGN.md 4.7.",
+   "fieldname": "work_order_contract",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Work Order Contract",
+   "options": "Work Order Contract",
+   "reqd": 1
+  },
+  {
+   "description": "Auto-assigned per parent WO (1, 2, 3...). Gap-tolerant: a cancelled variation still consumes its number; the next variation gets max+1, never the gap.",
+   "fieldname": "variation_number",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Variation Number",
+   "read_only": 1
+  },
+  {
+   "default": "Today",
+   "fieldname": "variation_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Variation Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "cb_header_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "work_order_contract.company",
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "work_order_contract.supplier",
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Supplier",
+   "options": "Supplier",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_reason",
+   "fieldtype": "Section Break",
+   "label": "Justification"
+  },
+  {
+   "description": "Justification for raising this variation. Captured for the audit trail and printed on the Variation Order printout.",
+   "fieldname": "reason_for_change",
+   "fieldtype": "Small Text",
+   "label": "Reason for Change",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_lines",
+   "fieldtype": "Section Break",
+   "label": "Variation Lines"
+  },
+  {
+   "fieldname": "variation_items",
+   "fieldtype": "Table",
+   "label": "Variation Items",
+   "options": "Work Order Variation Item",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_totals",
+   "fieldtype": "Section Break",
+   "label": "Totals"
+  },
+  {
+   "description": "Sum of variation line amounts (without tax).",
+   "fieldname": "total_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Total Amount",
+   "options": "company_currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_tax_amount",
+   "fieldtype": "Currency",
+   "label": "Total Tax Amount",
+   "options": "company_currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_amount_with_tax",
+   "fieldtype": "Currency",
+   "label": "Total (incl. tax)",
+   "options": "company_currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_meta",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Work Order Variation",
+   "print_hide": 1,
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-05-21 20:50:58.199761",
+ "modified_by": "Administrator",
+ "module": "Dux Work Orders",
+ "name": "Work Order Variation",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts User",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
