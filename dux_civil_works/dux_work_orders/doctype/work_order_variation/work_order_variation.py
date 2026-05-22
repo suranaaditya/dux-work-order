@@ -375,6 +375,49 @@ class WorkOrderVariation(Document):
 		# _post_to_wo_register's write path.
 		self._reverse_wo_register()
 
+	def get_print_scope_summary(self):
+		"""Return a dict-of-dicts keyed by item_key, used by the Work Order
+		Variation print format's before/after section. The values come
+		from the SHARED scope-map helper (same source of truth as RA Bill
+		allocation and the consolidated report) — never re-derive caps in
+		the print template.
+
+		Why a controller method (not direct helper call in Jinja): Frappe's
+		Jinja sandbox blocks frappe.get_attr / arbitrary module imports.
+		Methods on `doc` are reachable from Jinja, so this is the safe
+		bridge between the print template and the helper module.
+		"""
+		# Lazy import to keep this module's import surface light
+		from dux_civil_works.dux_work_orders.variation_state import build_scope_map
+		if not self.work_order_contract:
+			return {}
+		items = build_scope_map(self.work_order_contract)
+		out = {}
+		for it in items:
+			total_cap = sum(s["cap"] for s in it["scopes"])
+			out[it["item_key"]] = {
+				"item_no": it["item_no"],
+				"summary_head": it["summary_head"],
+				"description": it["description"],
+				"uom": it["uom"],
+				"total_qty": total_cap,
+			}
+		return out
+
+	def get_print_original_qtys(self):
+		"""Return {original_boq_row_uid: original.estimated_qty} for the
+		linked WO's BOQ rows. The print's before/after section uses this
+		to display the FROZEN contract qty (not the post-reduction cap).
+		"""
+		if not self.work_order_contract:
+			return {}
+		rows = frappe.get_all(
+			"Work Order BOQ Item",
+			filters={"parent": self.work_order_contract, "parenttype": "Work Order Contract"},
+			fields=["boq_row_uid", "estimated_qty"],
+		)
+		return {r.boq_row_uid: float(r.estimated_qty or 0) for r in rows if r.boq_row_uid}
+
 	def _post_to_wo_register(self):
 		"""Append (or update if already present) this variation's headline
 		row on the parent Work Order Contract's `variations_register`.
