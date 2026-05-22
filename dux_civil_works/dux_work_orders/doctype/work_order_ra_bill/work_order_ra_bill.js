@@ -27,6 +27,19 @@ frappe.ui.form.on("Work Order RA Bill", {
 		frm.set_query("summary_head", "bill_entries", () => ({
 			filters: { item_group: "Work Order Items", disabled: 0 },
 		}));
+
+		// Lock down bill_entries grid: rows are populated by the server
+		// from the WO's scope map (one per item, with the right item_key).
+		// A hand-added row would lack item_key and break per-scope
+		// allocation. Disable Add and Delete on the grid so the only way
+		// to change which items are present is to change the Work Order.
+		// (Cumulative qty per row stays editable — that's the engineer's
+		// surface.) Mirror discipline on items, which is already read-only
+		// at the doctype level — this just makes the grid affordances match.
+		frm.set_df_property("bill_entries", "cannot_add_rows", true);
+		frm.set_df_property("bill_entries", "cannot_delete_rows", true);
+		frm.set_df_property("items", "cannot_add_rows", true);
+		frm.set_df_property("items", "cannot_delete_rows", true);
 	},
 
 	civil_work_order(frm) {
