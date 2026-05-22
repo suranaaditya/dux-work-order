@@ -592,3 +592,71 @@ class WorkOrderRABill(Document):
 			"close_ra_bill() is not yet implemented. RA Bills move to Closed "
 			"status only via finance-approved write-off in a later phase."
 		))
+
+
+# ============================================================
+# Module-level helpers — called from the client form
+# ============================================================
+
+@frappe.whitelist()
+def get_initial_bill_entries(work_order_contract, existing_entries=None):
+	"""Build the bill_entries rows for a Work Order without requiring the
+	RA Bill to be saved first.
+
+	The form calls this when the engineer selects (or changes) the Work
+	Order, so entries appear IMMEDIATELY in the grid — closing the
+	empty-table UX hole that invited manual hand-entry of bill_entries
+	(which would lack the item_key linkage the allocator needs).
+
+	Behavior-preserving: this is a thin wrapper around the existing
+	populate_bill_entries_from_scope_map method (the same code that
+	runs at save time via before_insert). Building a temporary
+	in-memory RA Bill, seeding any existing client-side entries the
+	caller passed for idempotency, and running the verified populate
+	logic means the on-select path and the on-save path produce
+	identical rows — no second source of truth.
+
+	Idempotency: if existing_entries (list of dicts from the client's
+	current form state, keyed by item_key) is provided, those rows
+	seed the temp doc first so populate's preserve-existing-cumulative
+	branch keeps the user's typed values. Items not present in the
+	seed get cumulative_qty = Σ prior (the default).
+
+	Returns: list of dicts (one per bill_entry) ready for the client
+	to clear_table + add_child into the form. The client side does
+	NOT recompute anything — server is the source of truth.
+	"""
+	import json
+
+	if not work_order_contract:
+		return []
+
+	bill = frappe.new_doc("Work Order RA Bill")
+	bill.civil_work_order = work_order_contract
+
+	# Seed with any entries the client already had so idempotency
+	# kicks in for matching item_keys.
+	if existing_entries:
+		if isinstance(existing_entries, str):
+			existing_entries = json.loads(existing_entries)
+		for e in (existing_entries or []):
+			if not e.get("item_key"):
+				continue
+			bill.append("bill_entries", {
+				"item_key": e["item_key"],
+				"cumulative_qty": float(e.get("cumulative_qty") or 0),
+				"remarks": e.get("remarks"),
+			})
+
+	bill.populate_bill_entries_from_scope_map()
+
+	return [{
+		"item_key": be.item_key,
+		"item_no": be.item_no,
+		"summary_head": be.summary_head,
+		"description": be.description,
+		"uom": be.uom,
+		"total_sanctioned_qty": float(be.total_sanctioned_qty or 0),
+		"cumulative_qty": float(be.cumulative_qty or 0),
+		"remarks": be.remarks,
+	} for be in (bill.bill_entries or [])]

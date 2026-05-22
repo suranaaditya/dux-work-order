@@ -12,6 +12,9 @@
 // the user sees the per-scope items table after save.
 //
 // Per CLAUDE.md 1.5c.6: NO refresh() handler that mutates child tables.
+// The civil_work_order handler below DOES mutate bill_entries — that's
+// safe because it fires on a USER FIELD EDIT (not on refresh), so the
+// resulting dirty state corresponds to a real user change.
 
 frappe.ui.form.on("Work Order RA Bill", {
 	setup(frm) {
@@ -25,4 +28,79 @@ frappe.ui.form.on("Work Order RA Bill", {
 			filters: { item_group: "Work Order Items", disabled: 0 },
 		}));
 	},
+
+	civil_work_order(frm) {
+		// Auto-populate bill_entries when the engineer picks the Work
+		// Order, so the table doesn't sit empty inviting manual rows
+		// (manual rows would lack the item_key the allocator needs).
+		//
+		// Reuses the server's populate_bill_entries_from_scope_map via a
+		// whitelisted module-level wrapper — same code that runs at save
+		// time, so the on-select path and the on-save path always produce
+		// identical entries.
+		const wo = frm.doc.civil_work_order;
+		if (!wo) return;
+		// Skip while the form is mid-load (Frappe sets the field during
+		// document load and fires this handler; we don't want to clobber
+		// the persisted bill_entries on an existing doc).
+		if (frm.doc.__islocal !== 1) return;
+
+		const existing = (frm.doc.bill_entries || []).filter(
+			(r) => r.item_key
+		);
+		const has_typed_data = existing.some(
+			(r) => (parseFloat(r.cumulative_qty) || 0) > 0
+		);
+
+		const doPopulate = () => populate_entries(frm, wo, existing);
+
+		if (has_typed_data) {
+			// Changing to a different WO will discard the typed qtys for
+			// the old WO. Confirm before destroying user data.
+			frappe.confirm(
+				__(
+					"Changing the Work Order will reset the Bill Entries. " +
+						"Cumulative quantities you have already typed for the " +
+						"previous Work Order will be lost. Continue?"
+				),
+				doPopulate,
+				() => {
+					// User cancelled — nothing to do; their typed data
+					// remains and the new WO link sits without populating.
+					// (We don't try to revert the link because the prior
+					// value isn't reliably available here; the user can
+					// re-pick if needed.)
+				}
+			);
+		} else {
+			doPopulate();
+		}
+	},
 });
+
+function populate_entries(frm, wo, existing) {
+	frappe.call({
+		method: "dux_civil_works.dux_work_orders.doctype.work_order_ra_bill.work_order_ra_bill.get_initial_bill_entries",
+		args: {
+			work_order_contract: wo,
+			existing_entries: JSON.stringify(
+				(existing || []).map((r) => ({
+					item_key: r.item_key,
+					cumulative_qty: r.cumulative_qty,
+					remarks: r.remarks,
+				}))
+			),
+		},
+		freeze: true,
+		freeze_message: __("Loading items from Work Order..."),
+		callback: (r) => {
+			if (!r || !r.message) return;
+			frm.clear_table("bill_entries");
+			(r.message || []).forEach((row) => {
+				const child = frm.add_child("bill_entries");
+				Object.assign(child, row);
+			});
+			frm.refresh_field("bill_entries");
+		},
+	});
+}
