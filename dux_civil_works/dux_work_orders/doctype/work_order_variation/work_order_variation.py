@@ -145,15 +145,20 @@ class WorkOrderVariation(Document):
 		if not self.variation_items:
 			return
 
-		# Collect valid original BOQ row UIDs once per save
-		valid_uids = set()
+		# Index original BOQ rows by UID for fast lookup + head/uom comparison.
+		# An Additional Qty line is by definition extra quantity on an
+		# EXISTING original BOQ item, so its summary_head and uom must
+		# match that original row. This is the server-side belt-and-
+		# suspenders guard behind the client picker; bypass via API or a
+		# misbehaving client lands here.
+		original_by_uid = {}
 		if self.work_order_contract:
 			rows = frappe.get_all(
 				"Work Order BOQ Item",
 				filters={"parent": self.work_order_contract, "parenttype": "Work Order Contract"},
-				fields=["boq_row_uid"],
+				fields=["boq_row_uid", "summary_head", "uom", "item_no"],
 			)
-			valid_uids = {r.boq_row_uid for r in rows if r.boq_row_uid}
+			original_by_uid = {r.boq_row_uid: r for r in rows if r.boq_row_uid}
 
 		for idx, row in enumerate(self.variation_items, start=1):
 			if row.line_type == "New Item":
@@ -165,11 +170,27 @@ class WorkOrderVariation(Document):
 						"Variation line {0} (Additional Qty): original_boq_row_uid is required "
 						"(the BOQ row UID this scope extends)."
 					).format(idx))
-				if row.original_boq_row_uid not in valid_uids:
+				original = original_by_uid.get(row.original_boq_row_uid)
+				if not original:
 					frappe.throw(_(
 						"Variation line {0} (Additional Qty): original_boq_row_uid '{1}' does not "
 						"match any BOQ row on Work Order '{2}'."
 					).format(idx, row.original_boq_row_uid, self.work_order_contract))
+				# Head + UOM must match the original — Additional Qty by
+				# definition extends a specific existing BOQ item; you
+				# cannot reclassify it to a different head or measure it
+				# in a different UOM via a variation.
+				label = row.item_no or original.item_no or "?"
+				if row.summary_head != original.summary_head:
+					frappe.throw(_(
+						"Variation line {0} (Additional Qty, item {1}): summary head '{2}' "
+						"must match the original BOQ item's head '{3}'."
+					).format(idx, label, row.summary_head, original.summary_head))
+				if row.uom != original.uom:
+					frappe.throw(_(
+						"Variation line {0} (Additional Qty, item {1}): UOM '{2}' must match "
+						"the original BOQ item's UOM '{3}'."
+					).format(idx, label, row.uom, original.uom))
 			else:
 				frappe.throw(_("Variation line {0}: unknown line_type '{1}'.").format(
 					idx, row.line_type))

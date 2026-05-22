@@ -9,6 +9,7 @@ from frappe.utils import flt
 
 class WorkOrderContract(Document):
 	def validate(self):
+		self._block_amend_when_variations_exist()
 		self._ensure_boq_row_uids()
 		self._compute_boq_row_amounts()
 		self._set_default_boq_deviation_limits()
@@ -19,6 +20,42 @@ class WorkOrderContract(Document):
 		self.validate_summary_items_are_service_items()
 		self.validate_retention_release_split()
 		self.validate_schedule_dates()
+
+	def _block_amend_when_variations_exist(self):
+		"""Block Frappe's native amend cycle when the cancelled parent WO
+		has submitted Work Order Variations referencing it.
+
+		Amending a WO renames it (WO-...-1) and cancels the original.
+		Any variations pointing at the original name would be orphaned —
+		their work_order_contract field references a cancelled doc, the
+		variation_number sequence resets on the new WO name, and the
+		variation-aware RA Bill allocator would lose its scope map.
+
+		Per DESIGN.md 4.7, scope changes go through new Work Order
+		Variation documents — never through WO amend. This is also
+		recorded in CLAUDE.md "WO amendments during dry-run period".
+		This guard makes the policy load-bearing: it fires on save of
+		the amended draft, blocking the amend early with a clear
+		actionable message.
+
+		(Pre-RA-Bill, pre-variation cosmetic corrections that legitimately
+		need amend remain unaffected — they have no variations to
+		preserve. This guard only fires when there's actually something
+		to break.)
+		"""
+		if not self.amended_from:
+			return
+		sub_var_count = frappe.db.count(
+			"Work Order Variation",
+			{"work_order_contract": self.amended_from, "docstatus": 1},
+		)
+		if sub_var_count:
+			frappe.throw(_(
+				"Cannot amend Work Order {0}: it has {1} submitted Work Order "
+				"Variation(s). Scope changes must be made via new Work Order "
+				"Variations, not by amending the Work Order. See DESIGN.md "
+				"Section 4.7."
+			).format(self.amended_from, sub_var_count))
 
 	def _compute_boq_row_amounts(self):
 		"""Set amount = estimated_qty * rate on each boq_items row, then
@@ -259,6 +296,37 @@ class WorkOrderContract(Document):
 		# Phase 1: just record the submission. Nothing else to do yet.
 		pass
 
+	def before_cancel(self):
+		"""Block cancellation when submitted Work Order Variations or
+		Work Order RA Bills reference this WO.
+
+		The variation-aware RA Bill allocator depends on the WO + its
+		variations being a stable, jointly-referenced set; cancelling
+		the parent WO out from under live downstream documents would
+		invalidate cumulative-quantity history, scope maps, and posted
+		recoveries. Per DESIGN.md 4.7, the WO is immutable once any
+		variation or RA Bill exists against it.
+
+		The dependents must be cancelled first (in reverse-FK order:
+		RA Bills, then Variations, then the WO). This makes the order
+		explicit instead of relying on Frappe's link-integrity behaviour,
+		so the user sees an actionable count.
+		"""
+		sub_variations = frappe.db.count(
+			"Work Order Variation",
+			{"work_order_contract": self.name, "docstatus": 1},
+		)
+		sub_bills = frappe.db.count(
+			"Work Order RA Bill",
+			{"civil_work_order": self.name, "docstatus": 1},
+		)
+		if sub_variations or sub_bills:
+			frappe.throw(_(
+				"Cannot cancel Work Order {0}: {1} submitted variation(s) and "
+				"{2} submitted RA Bill(s) reference it. Cancel those first."
+			).format(self.name, sub_variations, sub_bills))
+
 	def on_cancel(self):
 		# Hook point for cascade behavior on cancel (Phase 2+).
+		# Before-cancel guard above blocks cancel when dependents exist.
 		pass

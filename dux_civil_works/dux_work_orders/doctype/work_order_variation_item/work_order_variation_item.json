@@ -7,6 +7,7 @@
  "engine": "InnoDB",
  "field_order": [
   "line_type",
+  "pick_original",
   "original_boq_row_uid",
   "item_no",
   "summary_head",
@@ -140,13 +141,21 @@
    "hidden": 1,
    "label": "BOQ Row UID",
    "read_only": 1
+  },
+  {
+   "columns": 1,
+   "description": "Open a dialog listing the parent Work Order's BOQ rows and click one to auto-fill this Additional Qty line (summary_head, uom, item_no, description, rate, tax_pct, deviation_limit_pct). For New Item lines this button does nothing.",
+   "fieldname": "pick_original",
+   "fieldtype": "Button",
+   "in_list_view": 1,
+   "label": "Pick Original"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-05-21 20:49:00.188365",
+ "modified": "2026-05-22 14:50:46.208789",
  "modified_by": "Administrator",
  "module": "Dux Work Orders",
  "name": "Work Order Variation Item",
