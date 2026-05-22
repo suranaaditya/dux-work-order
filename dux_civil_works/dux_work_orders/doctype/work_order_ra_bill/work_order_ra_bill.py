@@ -10,6 +10,7 @@ from dux_civil_works.dux_work_orders.doctype.work_order_advance_register.work_or
 	get_or_create_register,
 	get_outstanding_balance,
 )
+from dux_civil_works.dux_work_orders.variation_state import build_scope_map
 
 
 class WorkOrderRABill(Document):
@@ -69,133 +70,15 @@ class WorkOrderRABill(Document):
 	# ============================================================
 
 	def _build_scope_map(self):
-		"""Return the ordered item -> scopes structure for the linked WO,
-		joined with all docstatus=1 Work Order Variation docs.
+		"""Return the ordered item -> scopes structure for the linked WO.
 
-		Each item is keyed by either:
-		- the original BOQ row's boq_row_uid (for original-rooted items),
-		  optionally extended by 'Additional Qty' variation lines, or
-		- a 'New Item' variation line's own boq_row_uid (for standalone
-		  items introduced by a variation).
-
-		Each scope is a dict:
-		    {uid, cap, rate, tax_pct, deviation_limit_pct,
-		     item_no, summary_head, description, uom, source}
-		where source is 'Original' or 'Variation N'.
-
-		Returns a list of {item_key, item_no, summary_head, description,
-		uom, scopes} preserving original BOQ order first, then New-Item-
-		only items in (variation_number, row idx) order. See DESIGN.md
-		Section 4.7.
+		Thin wrapper over the shared helper in
+		dux_work_orders.variation_state.build_scope_map — same logic
+		also used by the Work Order Variation Summary report so the
+		report can never diverge from what billing actually does.
+		See DESIGN.md Section 4.7.
 		"""
-		items = []
-		items_by_key = {}
-
-		if not self.civil_work_order:
-			return items
-
-		wo = frappe.get_doc("Work Order Contract", self.civil_work_order)
-
-		# 1. Seed with each original BOQ row.
-		for boq in (wo.boq_items or []):
-			key = boq.boq_row_uid
-			if not key:
-				continue
-			item = {
-				"item_key": key,
-				"item_no": boq.item_no,
-				"summary_head": boq.summary_head,
-				"description": boq.description,
-				"uom": boq.uom,
-				"scopes": [{
-					"uid": key,
-					"cap": float(boq.estimated_qty or 0),
-					"rate": float(boq.rate or 0),
-					"tax_pct": float(boq.tax_pct or 0),
-					"deviation_limit_pct": float(boq.deviation_limit_pct or 0),
-					"item_no": boq.item_no,
-					"summary_head": boq.summary_head,
-					"description": boq.description,
-					"uom": boq.uom,
-					"source": "Original",
-				}],
-			}
-			items.append(item)
-			items_by_key[key] = item
-
-		# 2. Walk approved variations in variation_number order; append
-		#    Additional Qty scopes to their original-rooted items, and
-		#    create a standalone item per New Item line.
-		variations = frappe.get_all(
-			"Work Order Variation",
-			filters={"work_order_contract": self.civil_work_order, "docstatus": 1},
-			fields=["name", "variation_number"],
-			order_by="variation_number asc",
-		)
-		for v in variations:
-			vdoc = frappe.get_doc("Work Order Variation", v.name)
-			source_tag = f"Variation {v.variation_number}"
-			for vi in (vdoc.variation_items or []):
-				if not vi.boq_row_uid:
-					continue
-				scope_entry = {
-					"uid": vi.boq_row_uid,
-					"cap": float(vi.qty or 0),
-					"rate": float(vi.rate or 0),
-					"tax_pct": float(vi.tax_pct or 0),
-					"deviation_limit_pct": float(vi.deviation_limit_pct or 0),
-					"item_no": vi.item_no,
-					"summary_head": vi.summary_head,
-					"description": vi.description,
-					"uom": vi.uom,
-					"source": source_tag,
-				}
-				if vi.line_type == "Additional Qty":
-					root = items_by_key.get(vi.original_boq_row_uid)
-					if not root:
-						# Shouldn't happen — variation validate() guarantees
-						# original_boq_row_uid matches a WO BOQ row. Skip
-						# defensively if the WO has changed.
-						continue
-					root["scopes"].append(scope_entry)
-				elif vi.line_type == "New Item":
-					new_item = {
-						"item_key": vi.boq_row_uid,
-						"item_no": vi.item_no,
-						"summary_head": vi.summary_head,
-						"description": vi.description,
-						"uom": vi.uom,
-						"scopes": [scope_entry],
-					}
-					items.append(new_item)
-					items_by_key[vi.boq_row_uid] = new_item
-				elif vi.line_type == "Reduced Qty":
-					# Deductive variation: reduce the ORIGINAL scope's
-					# effective cap. vi.qty is stored negative (enforced
-					# by the variation controller's
-					# _force_qty_sign_by_line_type), so plain addition
-					# subtracts. The WO is never modified — the reduced
-					# cap is computed here at RA Bill read time. See
-					# DESIGN.md 4.7 "Deductive variations".
-					#
-					# The original scope is always scopes[0] (seeded in
-					# step 1 before any variation scopes are appended).
-					# Reductions cannot target New-Item-only items —
-					# the variation server guard requires
-					# original_boq_row_uid to match an original BOQ row.
-					root = items_by_key.get(vi.original_boq_row_uid)
-					if not root or not root["scopes"]:
-						continue
-					original_scope = root["scopes"][0]
-					new_cap = float(original_scope["cap"]) + float(vi.qty or 0)
-					# Clamp at 0 — a fully-reduced item is non-billable
-					# but never negative.
-					original_scope["cap"] = max(0.0, new_cap)
-				else:
-					# Future line types (rate-revision, DELETE-distinct, ...)
-					continue
-
-		return items
+		return build_scope_map(self.civil_work_order)
 
 	def populate_bill_entries_from_scope_map(self):
 		"""Build/refresh bill_entries from the scope map: one row per item.
