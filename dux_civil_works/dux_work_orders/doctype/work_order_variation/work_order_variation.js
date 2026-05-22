@@ -47,11 +47,18 @@ frappe.ui.form.on("Work Order Variation Item", {
 		recompute_totals(frm);
 	},
 	line_type(frm, cdt, cdn) {
-		// Switching to "New Item" clears the original UID reference;
-		// switching to "Additional Qty" leaves it for the user to pick.
+		// Switching to "New Item" clears the original-row references
+		// (original_boq_row_uid + original_qty); New Item lines have no
+		// original to extend. Switching to "Additional Qty" leaves
+		// fields blank for the user to pick from the dialog.
 		const row = locals[cdt][cdn];
-		if (row.line_type === "New Item" && row.original_boq_row_uid) {
-			frappe.model.set_value(cdt, cdn, "original_boq_row_uid", "");
+		if (row.line_type === "New Item") {
+			if (row.original_boq_row_uid) {
+				frappe.model.set_value(cdt, cdn, "original_boq_row_uid", "");
+			}
+			if (row.original_qty) {
+				frappe.model.set_value(cdt, cdn, "original_qty", 0);
+			}
 		}
 	},
 	pick_original(frm, cdt, cdn) {
@@ -250,6 +257,7 @@ function fill_from_original(frm, cdt, cdn, src) {
 		.then(() => frappe.model.set_value(cdt, cdn, "uom", src.uom || ""))
 		.then(() => frappe.model.set_value(cdt, cdn, "item_no", src.item_no || ""))
 		.then(() => frappe.model.set_value(cdt, cdn, "description", src.description || ""))
+		.then(() => frappe.model.set_value(cdt, cdn, "original_qty", src.estimated_qty || 0))
 		.then(() => frappe.model.set_value(cdt, cdn, "rate", src.rate || 0))
 		.then(() => frappe.model.set_value(cdt, cdn, "tax_pct", src.tax_pct || 0))
 		.then(() =>
