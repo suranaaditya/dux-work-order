@@ -25,7 +25,7 @@
  ],
  "fields": [
   {
-   "columns": 1,
+   "columns": 2,
    "description": "'Additional Qty' = more qty for an item already in the original BOQ. 'New Item' = brand-new item not in the original BOQ.",
    "fieldname": "line_type",
    "fieldtype": "Select",
@@ -59,7 +59,7 @@
    "reqd": 1
   },
   {
-   "columns": 3,
+   "columns": 4,
    "fieldname": "description",
    "fieldtype": "Small Text",
    "in_list_view": 1,
@@ -94,6 +94,7 @@
    "reqd": 1
   },
   {
+   "columns": 1,
    "description": "Per-row tax percentage. 0 means no tax on this row.",
    "fieldname": "tax_pct",
    "fieldtype": "Percent",
@@ -117,6 +118,7 @@
    "read_only": 1
   },
   {
+   "columns": 2,
    "fieldname": "amount_with_tax",
    "fieldtype": "Currency",
    "in_list_view": 1,
@@ -148,14 +150,14 @@
    "fieldname": "pick_original",
    "fieldtype": "Button",
    "in_list_view": 1,
-   "label": "Pick Original"
+   "label": "Pick"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-05-22 14:50:46.208789",
+ "modified": "2026-05-22 15:13:16.407359",
  "modified_by": "Administrator",
  "module": "Dux Work Orders",
  "name": "Work Order Variation Item",
