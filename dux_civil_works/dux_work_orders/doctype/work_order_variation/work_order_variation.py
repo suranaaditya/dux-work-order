@@ -355,15 +355,89 @@ class WorkOrderVariation(Document):
 				).format(original.item_no or "?", orig_uid, effective_cap, already_billed))
 
 	def on_submit(self):
-		# Hook point for the next build step (variation-aware RA Bill
-		# allocation logic). Phase 1 of the Variation build: nothing to
-		# do at submit; the variation just becomes the locked sanctioned
-		# delta against the WO.
-		pass
+		# Write this variation's headline row onto the parent WO's
+		# `variations_register` table (allow_on_submit), so the
+		# (otherwise frozen) WO surfaces the existence of every
+		# sanctioned variation against it. The WO is NEVER amended or
+		# cancelled by this — Frappe permits writes to allow_on_submit
+		# fields on submitted docs.
+		self._post_to_wo_register()
 
 	def on_cancel(self):
 		# Cancelling a variation marks docstatus=2 but the variation_number
 		# is retained — gap-tolerant numbering means the next variation
 		# gets max+1, never the cancelled gap. See autoname() docstring
 		# and DESIGN.md 4.7.
-		pass
+		#
+		# Remove the headline row this variation wrote to the parent
+		# WO's variations_register on submit, so a cancelled variation
+		# stops appearing as part of the contract. Mirror of
+		# _post_to_wo_register's write path.
+		self._reverse_wo_register()
+
+	def _post_to_wo_register(self):
+		"""Append (or update if already present) this variation's headline
+		row on the parent Work Order Contract's `variations_register`.
+
+		This runs in on_submit, against a SUBMITTED Work Order. Because
+		`variations_register` is an allow_on_submit table on Work Order
+		Contract, Frappe permits `wo.save(ignore_permissions=True)` to
+		persist child-row changes without amending or cancelling the WO.
+		Mirrors the RA Bill -> Advance Register write pattern (see
+		work_order_ra_bill.post_recoveries_to_register), adjusted for
+		the submittable-target case.
+
+		Idempotent: if a row keyed by this variation's `name` already
+		exists, its fields are refreshed instead of duplicating. This
+		covers the re-save edge after a controller fix or re-trigger.
+		"""
+		if not self.work_order_contract:
+			return
+		wo = frappe.get_doc("Work Order Contract", self.work_order_contract)
+		payload = {
+			"variation": self.name,
+			"variation_number": int(self.variation_number or 0),
+			"variation_date": self.variation_date,
+			"status": "Submitted",
+			"reason_for_change": self.reason_for_change,
+			# Variation totals are SIGNED — deductive variations are
+			# negative (Reduced Qty lines contribute negative amount).
+			"value_with_tax": flt(self.total_amount_with_tax or 0, 2),
+		}
+		# Idempotency: if a row for this variation already exists, refresh
+		# in place rather than duplicating.
+		existing_row = None
+		for row in (wo.variations_register or []):
+			if row.variation == self.name:
+				existing_row = row
+				break
+		if existing_row:
+			for k, v in payload.items():
+				setattr(existing_row, k, v)
+		else:
+			wo.append("variations_register", payload)
+		# allow_on_submit permits writing to a submitted parent; only
+		# allow_on_submit fields have changed, so Frappe's save accepts.
+		wo.save(ignore_permissions=True)
+
+	def _reverse_wo_register(self):
+		"""Remove this variation's row from the parent WO's
+		`variations_register`. Mirror of _post_to_wo_register's write.
+
+		If the WO no longer exists (the user manually deleted it — would
+		require ignoring the before_cancel guard on the WO too, but
+		defensive), this is a no-op. Otherwise the row keyed by
+		`variation == self.name` is dropped and the WO saved via the
+		allow_on_submit-aware path.
+		"""
+		if not self.work_order_contract:
+			return
+		if not frappe.db.exists("Work Order Contract", self.work_order_contract):
+			return
+		wo = frappe.get_doc("Work Order Contract", self.work_order_contract)
+		before = len(wo.variations_register or [])
+		wo.variations_register = [
+			r for r in (wo.variations_register or []) if r.variation != self.name
+		]
+		if len(wo.variations_register) != before:
+			wo.save(ignore_permissions=True)

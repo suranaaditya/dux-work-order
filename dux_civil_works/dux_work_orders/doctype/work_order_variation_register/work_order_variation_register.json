@@ -1,0 +1,86 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-05-22 18:23:51.751025",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "variation",
+  "variation_number",
+  "variation_date",
+  "status",
+  "reason_for_change",
+  "value_with_tax"
+ ],
+ "fields": [
+  {
+   "columns": 2,
+   "description": "Reference to the Work Order Variation. Click through for full detail.",
+   "fieldname": "variation",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Variation",
+   "options": "Work Order Variation",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "fieldname": "variation_number",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Var No.",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "fieldname": "variation_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Date",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "description": "Lifecycle status of the variation (normally 'Submitted'; on cancel the row is removed).",
+   "fieldname": "status",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Status",
+   "read_only": 1
+  },
+  {
+   "columns": 3,
+   "fieldname": "reason_for_change",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Reason",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "description": "Variation's total_amount_with_tax. SIGNED \u2014 deductive (Reduced Qty) variations are negative.",
+   "fieldname": "value_with_tax",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Value (incl. tax)",
+   "options": "company_currency",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-05-22 18:23:51.751025",
+ "modified_by": "Administrator",
+ "module": "Dux Work Orders",
+ "name": "Work Order Variation Register",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "ASC",
+ "states": []
+}

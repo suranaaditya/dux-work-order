@@ -31,6 +31,8 @@
   "total_amount",
   "total_tax_amount",
   "total_amount_with_tax",
+  "section_variations",
+  "variations_register",
   "section_terms",
   "retention_percentage",
   "mobilization_advance_pct",
@@ -338,13 +340,27 @@
    "fieldtype": "Currency",
    "label": "Total Work Order Amount (incl. tax)",
    "read_only": 1
+  },
+  {
+   "description": "Read-only register of approved variations against this Work Order. Written automatically when a Work Order Variation is submitted; the row is removed when a variation is cancelled. The Work Order itself is never amended or re-issued.",
+   "fieldname": "section_variations",
+   "fieldtype": "Section Break",
+   "label": "Variations to this Work Order"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "variations_register",
+   "fieldtype": "Table",
+   "label": "Variations",
+   "options": "Work Order Variation Register",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-05-21 19:18:28.238234",
+ "modified": "2026-05-22 18:24:28.815445",
  "modified_by": "Administrator",
  "module": "Dux Work Orders",
  "name": "Work Order Contract",
