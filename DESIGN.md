@@ -301,10 +301,15 @@ Primary variation line types:
 - **ADDITIONAL-QTY** — more quantity for an item that already exists
   in the original BOQ (the common case once the original sanctioned
   qty and its deviation tolerance are used up).
+- **REDUCED-QTY** — omit some quantity from an existing original BOQ
+  item (the deductive counterpart of ADDITIONAL-QTY; see "Deductive
+  variations" below).
 
-DELETE and rate-revision are noted as possible future extensions but
-are not part of the initial build; the dominant operational cases at
-RGI are ADD and ADDITIONAL-QTY.
+Rate-revision is noted as a possible future extension but is not part
+of the initial build; the dominant operational cases at RGI are ADD,
+ADDITIONAL-QTY and REDUCED-QTY. A full reduction (e.g. −100 on a
+100-qty item) is the way to express DELETE — no separate DELETE
+line type is needed.
 
 #### Why this shape (vs amending the WO)
 
@@ -398,6 +403,67 @@ deviation limit allows up to 105 cum of original-scope billing; once
 that's exhausted, further billing requires a Variation 1 line for the
 item, which carries its own sanctioned qty and its own deviation
 tolerance.
+
+#### Deductive variations (Reduced Qty)
+
+A **Reduced Qty** line omits quantity from an existing original BOQ
+item. It references the original via the same picker as Additional Qty,
+with summary_head and uom locked to the original; the engineer types
+the magnitude to omit and the controller stores `qty` as a negative
+number. The line's amount/tax/with-tax compute from the negative qty,
+so the variation's totals correctly reflect value being removed.
+
+**Storage convention.** Sign is force-corrected on every variation
+save: `qty = -abs(qty)` for Reduced Qty lines, `qty = +abs(qty)`
+otherwise. The JS form handlers mirror this for live feedback, but the
+server enforcement is the load-bearing guarantee — API or
+misbehaving-client writes land in the same normalized state.
+
+**Effective cap via uniform sum (the read-time computation).** The
+frozen Work Order Contract is NEVER modified by a Reduced Qty
+variation. Instead, the RA Bill's scope-map builder computes each
+item's ORIGINAL scope `effective_cap` as:
+
+  `effective_cap = original.estimated_qty + Σ(qty of approved Reduced
+   Qty variation lines targeting this original's boq_row_uid)`
+
+Because reductions are stored negative, this is a plain addition:
+`100 + (−20) = 80`. The cap is clamped at 0 (never negative). The
+allocation algorithm — left-to-right distribution, Edge-2 overflow
+onto last scope, Edge-3 omit zero-activity, per-scope deviation
+enforcement — is **unchanged**; it just runs against the corrected
+cap.
+
+**Reductions target the ORIGINAL scope.** Additive scopes (Additional
+Qty / New Item) remain separate fillable scopes filling left-to-right
+after the (now-reduced) original. For an item with original 100, a
+Variation 1 Additional Qty +30, and a Variation 2 Reduced Qty −20:
+the original scope's effective cap becomes 80, the var-add scope cap
+stays at 30, total billable is 110 — left-to-right fill order is
+[original 80, var-add 30].
+
+**DELETE is a full reduction.** A Reduced Qty equal in magnitude to
+the original (`−100` on a 100-qty item) is allowed; it drops the
+effective cap to 0 and the item becomes non-billable going forward.
+No separate DELETE line type is needed.
+
+**Guards (all server-enforced):**
+- **Edge 1 (per-line)** — `abs(qty) ≤ original.estimated_qty`.
+  Cannot omit more than exists from a single line.
+- **Cumulative reductions ≤ cap** — across this variation AND every
+  other approved variation on the same WO, total reduction against
+  any single original row cannot exceed that row's `estimated_qty`.
+  Catches the case Edge 1 misses (two −60 reductions targeting the
+  same 100-qty original would sum to −120, producing nonsense).
+- **Edge 3 (below already-billed safety net)** — when saving a Reduced
+  Qty variation, the resulting effective cap must be ≥ the cumulative
+  already billed against the original scope (across submitted RA
+  Bills). Fires only in the conflict case; cheap insurance the user
+  said "shouldn't happen", but the system enforces rather than trusts.
+
+The combination prevents nonsense states (effective cap going negative,
+billed work being silently revoked) without requiring any change to
+the verified allocation core.
 
 #### The consolidated view
 

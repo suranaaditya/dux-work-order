@@ -169,8 +169,30 @@ class WorkOrderRABill(Document):
 					}
 					items.append(new_item)
 					items_by_key[vi.boq_row_uid] = new_item
+				elif vi.line_type == "Reduced Qty":
+					# Deductive variation: reduce the ORIGINAL scope's
+					# effective cap. vi.qty is stored negative (enforced
+					# by the variation controller's
+					# _force_qty_sign_by_line_type), so plain addition
+					# subtracts. The WO is never modified — the reduced
+					# cap is computed here at RA Bill read time. See
+					# DESIGN.md 4.7 "Deductive variations".
+					#
+					# The original scope is always scopes[0] (seeded in
+					# step 1 before any variation scopes are appended).
+					# Reductions cannot target New-Item-only items —
+					# the variation server guard requires
+					# original_boq_row_uid to match an original BOQ row.
+					root = items_by_key.get(vi.original_boq_row_uid)
+					if not root or not root["scopes"]:
+						continue
+					original_scope = root["scopes"][0]
+					new_cap = float(original_scope["cap"]) + float(vi.qty or 0)
+					# Clamp at 0 — a fully-reduced item is non-billable
+					# but never negative.
+					original_scope["cap"] = max(0.0, new_cap)
 				else:
-					# Future line types (DELETE/rate-revision) — skip for now
+					# Future line types (rate-revision, DELETE-distinct, ...)
 					continue
 
 		return items
@@ -553,8 +575,12 @@ class WorkOrderRABill(Document):
 			est = float(row.estimated_qty or 0)
 			cum = float(row.cumulative_qty or 0)
 			limit_pct = float(row.deviation_limit_pct or 0)
-			if est <= 0:
-				continue
+			# Don't skip est<=0 — that gives away the floor for fully-
+			# reduced scopes (Reduced Qty = -original.estimated_qty
+			# produces a 0-cap original scope; without this check, billing
+			# any positive amount against the deleted item would slip past
+			# deviation enforcement). When est=0, ceiling=0, so any
+			# positive cumulative is flagged.
 			ceiling = est * (1 + limit_pct / 100.0)
 			if cum > ceiling + 0.0001:
 				offenders.append((row.idx, row.description, row.scope_source, cum, ceiling, limit_pct))

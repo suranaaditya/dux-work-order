@@ -32,6 +32,25 @@ frappe.ui.form.on("Work Order Variation", {
 
 frappe.ui.form.on("Work Order Variation Item", {
 	qty(frm, cdt, cdn) {
+		// Sign-normalize by line_type before recomputing. Server validate()
+		// is the load-bearing guarantee (forces sign in _force_qty_sign_by
+		// _line_type), this is the live-UI mirror.
+		const row = locals[cdt][cdn];
+		const q = parseFloat(row.qty) || 0;
+		let target;
+		if (row.line_type === "Reduced Qty") {
+			target = -Math.abs(q);
+		} else {
+			target = Math.abs(q);
+		}
+		if (target !== q) {
+			frappe.model.set_value(cdt, cdn, "qty", target).then(() => {
+				recompute_row_amount(cdt, cdn);
+				frm.refresh_field("variation_items");
+				recompute_totals(frm);
+			});
+			return;
+		}
 		recompute_row_amount(cdt, cdn);
 		frm.refresh_field("variation_items");
 		recompute_totals(frm);
@@ -47,11 +66,13 @@ frappe.ui.form.on("Work Order Variation Item", {
 		recompute_totals(frm);
 	},
 	line_type(frm, cdt, cdn) {
-		// Switching to "New Item" clears the original-row references
-		// (original_boq_row_uid + original_qty); New Item lines have no
-		// original to extend. Switching to "Additional Qty" leaves
-		// fields blank for the user to pick from the dialog.
+		// Switching to "New Item": clear the original-row references
+		// (no original to extend / omit from).
+		// Switching to "Reduced Qty": negate qty if currently positive.
+		// Switching to "Additional Qty": flip qty back to positive if
+		// currently negative (from a prior Reduced Qty state).
 		const row = locals[cdt][cdn];
+		const q = parseFloat(row.qty) || 0;
 		if (row.line_type === "New Item") {
 			if (row.original_boq_row_uid) {
 				frappe.model.set_value(cdt, cdn, "original_boq_row_uid", "");
@@ -59,18 +80,33 @@ frappe.ui.form.on("Work Order Variation Item", {
 			if (row.original_qty) {
 				frappe.model.set_value(cdt, cdn, "original_qty", 0);
 			}
+			if (q < 0) {
+				frappe.model.set_value(cdt, cdn, "qty", Math.abs(q));
+			}
+		} else if (row.line_type === "Reduced Qty") {
+			if (q > 0) {
+				frappe.model.set_value(cdt, cdn, "qty", -q);
+			}
+		} else if (row.line_type === "Additional Qty") {
+			if (q < 0) {
+				frappe.model.set_value(cdt, cdn, "qty", Math.abs(q));
+			}
 		}
 	},
 	pick_original(frm, cdt, cdn) {
 		// "Pick Original" button on the variation_items child grid.
+		// Applies to Additional Qty AND Reduced Qty (both reference an
+		// existing original BOQ row). New Item lines skip the picker
+		// (brand-new item — no original to pick).
 		const row = locals[cdt][cdn];
-		if (row.line_type !== "Additional Qty") {
+		const REFERENCING = ["Additional Qty", "Reduced Qty"];
+		if (!REFERENCING.includes(row.line_type)) {
 			frappe.msgprint({
 				title: __("Not applicable"),
 				message: __(
 					"The Pick Original button applies only to Additional Qty " +
-					"lines. New Item lines are free-entry (the variation introduces " +
-					"a brand-new item, so there is no original to pick from)."
+					"and Reduced Qty lines, which reference an existing original " +
+					"BOQ row. New Item lines are free-entry."
 				),
 				indicator: "blue",
 			});
