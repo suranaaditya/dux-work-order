@@ -273,6 +273,12 @@ class WorkOrderContract(Document):
 			"apply_labour_cess": "apply_labour_cess_by_default",
 			"labour_cess_pct": "default_labour_cess_pct",
 			"tds_category": "default_tds_category",
+			# General Conditions block — standard boilerplate clauses
+			# prefilled from Settings; the engineer can override per WO
+			# for contracts with negotiated terms. Same is-None/is-empty
+			# discriminator as the other prefilled fields, so explicit
+			# user input (even an empty block) is respected.
+			"general_conditions": "default_general_conditions",
 		}
 		for wo_field, settings_field in mapping.items():
 			# Only prefill if the user genuinely didn't provide a value.

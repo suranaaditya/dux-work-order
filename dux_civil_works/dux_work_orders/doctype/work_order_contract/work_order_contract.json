@@ -53,6 +53,8 @@
   "tds_category",
   "section_payment_terms",
   "payment_terms",
+  "section_general_conditions",
+  "general_conditions",
   "section_meta",
   "amended_from"
  ],
@@ -354,13 +356,25 @@
    "label": "Variations",
    "options": "Work Order Variation Register",
    "read_only": 1
+  },
+  {
+   "description": "Standard boilerplate clauses printed on page 2 of the Work Order. Prefilled from Work Order Settings on insert; override here if this contract needs different terms.",
+   "fieldname": "section_general_conditions",
+   "fieldtype": "Section Break",
+   "label": "General Conditions"
+  },
+  {
+   "description": "HTML / rich text. Rendered as-is in the Work Order Contract printout. Prefilled from Settings default; edit per WO if needed.",
+   "fieldname": "general_conditions",
+   "fieldtype": "Text Editor",
+   "label": "General Conditions"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-05-22 18:24:28.815445",
+ "modified": "2026-05-26 14:52:37.384010",
  "modified_by": "Administrator",
  "module": "Dux Work Orders",
  "name": "Work Order Contract",

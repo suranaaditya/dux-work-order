@@ -26,6 +26,8 @@
   "cb_statutory_1",
   "default_labour_cess_pct",
   "default_tds_category",
+  "section_general_conditions",
+  "default_general_conditions",
   "section_company_accounts",
   "company_accounts"
  ],
@@ -160,13 +162,25 @@
    "fieldname": "other_advances_defaults_section",
    "fieldtype": "Section Break",
    "label": "Other Advance Defaults (Optional)"
+  },
+  {
+   "description": "Default General Conditions block prefilled on new Work Order Contracts. Editable per WO; standard boilerplate sits here.",
+   "fieldname": "section_general_conditions",
+   "fieldtype": "Section Break",
+   "label": "General Conditions"
+  },
+  {
+   "description": "HTML / rich text. Rendered as-is in the Work Order Contract printout (page 2). New WOs receive this on insert via prefill_terms_from_settings; the user can override per-WO.",
+   "fieldname": "default_general_conditions",
+   "fieldtype": "Text Editor",
+   "label": "Default General Conditions"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-05-21 18:42:54.329870",
+ "modified": "2026-05-26 14:52:37.171503",
  "modified_by": "Administrator",
  "module": "Dux Work Orders",
  "name": "Work Order Settings",
