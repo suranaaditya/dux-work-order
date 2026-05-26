@@ -86,9 +86,11 @@
    "read_only": 1
   },
   {
+   "columns": 1,
    "description": "Max execution beyond estimated_qty without an Amendment. Defaults from Civil Works Settings.",
    "fieldname": "deviation_limit_pct",
    "fieldtype": "Percent",
+   "in_list_view": 1,
    "label": "Deviation Limit %"
   },
   {
@@ -129,7 +131,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-05-21 19:21:46.819081",
+ "modified": "2026-05-26 14:33:30.428840",
  "modified_by": "Administrator",
  "module": "Dux Work Orders",
  "name": "Work Order BOQ Item",
