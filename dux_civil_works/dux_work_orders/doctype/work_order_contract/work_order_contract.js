@@ -24,11 +24,48 @@ frappe.ui.form.on("Work Order Contract", {
 		}));
 	},
 
+	onload(frm) {
+		// New WO: if "Use Standard General Conditions" defaults to checked
+		// and the General Conditions editor is empty, populate from the
+		// Settings default so the engineer sees the boilerplate
+		// immediately (and can edit per WO if needed).
+		// Existing/saved WOs: do not touch — whatever was saved stays.
+		if (frm.is_new() && frm.doc.use_standard_conditions && !frm.doc.general_conditions) {
+			populate_standard_conditions(frm);
+		}
+	},
+
+	use_standard_conditions(frm) {
+		// Tick → load the standard conditions from Settings into the
+		// editor (overwriting whatever's there — the user can edit after).
+		// Untick → clear the editor. If the user has typed custom text and
+		// then unticks, those edits are intentionally discarded; if they
+		// re-tick, the standard text is restored.
+		if (frm.doc.use_standard_conditions) {
+			populate_standard_conditions(frm);
+		} else {
+			frm.set_value("general_conditions", "");
+		}
+	},
+
 	boq_items_remove(frm) {
 		// Row removed from BOQ — re-aggregate.
 		rebuild_summary(frm);
 	},
 });
+
+function populate_standard_conditions(frm) {
+	// Fetch the Settings default and put it into the editor. Uses
+	// frappe.db.get_single_value so the JS doesn't need to know the
+	// Settings doctype's internal layout.
+	frappe.db
+		.get_single_value("Work Order Settings", "default_general_conditions")
+		.then((html) => {
+			if (html) {
+				frm.set_value("general_conditions", html);
+			}
+		});
+}
 
 // NOTE: there is intentionally no refresh() handler that rebuilds the
 // summary. The server controller already recomputes summary_items in

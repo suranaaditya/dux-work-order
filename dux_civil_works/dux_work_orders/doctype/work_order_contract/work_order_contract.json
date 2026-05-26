@@ -54,6 +54,8 @@
   "section_payment_terms",
   "payment_terms",
   "section_general_conditions",
+  "include_financial_terms_in_print",
+  "use_standard_conditions",
   "general_conditions",
   "section_meta",
   "amended_from"
@@ -358,23 +360,37 @@
    "read_only": 1
   },
   {
-   "description": "Standard boilerplate clauses printed on page 2 of the Work Order. Prefilled from Work Order Settings on insert; override here if this contract needs different terms.",
+   "description": "Print controls + the General Conditions block printed on page 2. Standard boilerplate (from Settings) populates the editor when 'Use Standard General Conditions' is checked; edit per WO as needed.",
    "fieldname": "section_general_conditions",
    "fieldtype": "Section Break",
-   "label": "General Conditions"
+   "label": "Print Options & General Conditions"
   },
   {
    "description": "HTML / rich text. Rendered as-is in the Work Order Contract printout. Prefilled from Settings default; edit per WO if needed.",
    "fieldname": "general_conditions",
    "fieldtype": "Text Editor",
    "label": "General Conditions"
+  },
+  {
+   "default": "0",
+   "description": "When checked, the printed Work Order Contract shows the Financial Terms section (retention, DLP, mobilization advance, material advance, recoveries, retention release schedule, statutory deductions). Unchecked by default \u2014 these are usually internal terms you may not want exposed to the contractor on the printout.",
+   "fieldname": "include_financial_terms_in_print",
+   "fieldtype": "Check",
+   "label": "Include Financial Terms in Print"
+  },
+  {
+   "default": "1",
+   "description": "When checked, the standard General Conditions (from Work Order Settings) are pulled into the editor below \u2014 you can then edit per WO. Uncheck to leave the editor empty / write your own. Whatever is in the editor at save time is what gets printed (nothing printed if empty).",
+   "fieldname": "use_standard_conditions",
+   "fieldtype": "Check",
+   "label": "Use Standard General Conditions"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-05-26 14:52:37.384010",
+ "modified": "2026-05-26 15:15:00.868048",
  "modified_by": "Administrator",
  "module": "Dux Work Orders",
  "name": "Work Order Contract",
