@@ -278,6 +278,22 @@ fixtures = [
         "doctype": "Item",
         "filters": [["item_group", "=", "Work Order Items"]],
     },
+    # Property Setters that set the default Print Format on each of the
+    # app's three submittable doctypes. These live in the database (not in
+    # app source), so without exporting them as fixtures they would never
+    # travel from dev to production. Importing on every `bench migrate`
+    # keeps prod in sync with what we configure on dev.
+    {
+        "doctype": "Property Setter",
+        "filters": [
+            ["doc_type", "in", [
+                "Work Order Contract",
+                "Work Order Variation",
+                "Work Order RA Bill",
+            ]],
+            ["property", "=", "default_print_format"],
+        ],
+    },
 ]
 
 
