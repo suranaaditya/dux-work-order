@@ -109,7 +109,7 @@
    "label": "Default Deviation Limit"
   },
   {
-   "default": "5",
+   "default": "0",
    "description": "Maximum allowable execution beyond BOQ qty per item without raising an Amendment.",
    "fieldname": "default_boq_deviation_limit_pct",
    "fieldtype": "Percent",
@@ -180,7 +180,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-05-26 14:52:37.171503",
+ "modified": "2026-05-27 17:44:13.001056",
  "modified_by": "Administrator",
  "module": "Dux Work Orders",
  "name": "Work Order Settings",
