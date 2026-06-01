@@ -6,3 +6,4 @@
 # Patches added in this section will be executed after doctypes are migrated
 dux_civil_works.patches.v1_0.seed_default_general_conditions
 dux_civil_works.patches.v1_0.zero_default_boq_deviation_limit
+dux_civil_works.patches.v1_0.default_release_split_100_0
