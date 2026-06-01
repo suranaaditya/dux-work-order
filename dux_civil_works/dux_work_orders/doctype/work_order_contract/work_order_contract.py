@@ -240,24 +240,27 @@ class WorkOrderContract(Document):
 				).format(idx, row.summary_head, item_data.item_group))
 
 	def validate_retention_release_split(self):
-		# If the user hasn't entered EITHER release percent (both blank /
-		# None), apply a sensible default: 100% on final bill, 0% after
-		# DLP — i.e. full release at final bill, no retention held back
-		# past the DLP. This removes the "must sum to 100" confusion when
-		# the engineer leaves the section blank entirely. Once they enter
-		# at least one of the two, the sum-to-100 check below kicks in to
-		# protect against typos like 60+30 = 90%.
-		on_final_raw = self.retention_release_on_final_bill
-		after_dlp_raw = self.retention_release_after_dlp
-		both_blank = (on_final_raw is None or on_final_raw == "") and \
-		             (after_dlp_raw is None or after_dlp_raw == "")
-		if both_blank:
+		# If the engineer hasn't configured the release split, apply a
+		# sensible default: 100% on final bill, 0% after DLP — i.e. full
+		# release at final bill, no retention held back past the DLP.
+		#
+		# "Hasn't configured" covers THREE equivalent cases:
+		#   - both fields are None (Python null)
+		#   - both fields are empty string ("" — possible during JSON load)
+		#   - both fields are 0.0 (Frappe's normalisation of a blank Percent
+		#     cell into the DB column — this is what the user actually sees
+		#     after Frappe renders the form with no entered value)
+		# All three should be treated as "user didn't enter anything" and
+		# default to 100/0. Once the engineer enters at least one non-zero
+		# value, the sum-to-100 check kicks in to protect against typos
+		# like 60 + 30 = 90.
+		on_final = float(self.retention_release_on_final_bill or 0)
+		after_dlp = float(self.retention_release_after_dlp or 0)
+		if on_final == 0 and after_dlp == 0:
 			self.retention_release_on_final_bill = 100
 			self.retention_release_after_dlp = 0
 			return
 
-		on_final = float(on_final_raw or 0)
-		after_dlp = float(after_dlp_raw or 0)
 		total = on_final + after_dlp
 		if abs(total - 100) > 0.001:
 			frappe.throw(_(
