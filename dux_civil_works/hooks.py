@@ -315,14 +315,7 @@ doc_events = {
     },
 }
 
-
-# ============================================================
-# SiteBill React SPA (frontend/) — served at /sitebill
-# ============================================================
-# Added on branch feat/sitebill-frontend. The Vite build emits the bundle to
-# public/frontend/ (base "/assets/dux_civil_works/frontend/") and the entry
-# HTML to www/sitebill.html. These rules hand every path under /sitebill to the
-# client-side router so deep links resolve to the SPA entry page.
-website_route_rules = [
-    {"from_route": "/sitebill/<path:app_path>", "to_route": "sitebill"},
-]
+# NOTE: The SiteBill React SPA (frontend/) is served by Frappe as the static
+# www/sitebill.html page at /sitebill and uses HASH routing, so it needs NO
+# website_route_rules and NO hooks/controller change — this app's backend is
+# left exactly as on main.
