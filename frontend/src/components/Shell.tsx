@@ -9,7 +9,7 @@ const NAV: NavItem[] = [
   { to: "/", label: "Dashboard", icon: "dashboard" },
   { to: "/work-orders", label: "Work Orders", icon: "doc" },
   { to: "/ra-bills", label: "RA Bills", icon: "bill" },
-  { to: "/suppliers", label: "Suppliers", icon: "users", soon: true },
+  { to: "/suppliers", label: "Suppliers", icon: "users" },
   { to: "/measurement-book", label: "Measurement Book", icon: "ruler", soon: true },
   { to: "/payments", label: "Payments", icon: "rupee", soon: true },
   { to: "/reports", label: "Reports", icon: "report", soon: true },
