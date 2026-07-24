@@ -13,6 +13,7 @@ const PROXY_TARGET = process.env.VITE_PROXY_TARGET || "https://erp.jewonline.in"
 // In production (served same-origin by Frappe) this is unset and cookie auth
 // is used instead.
 const PROXY_AUTH = process.env.VITE_FRAPPE_TOKEN;
+const TARGET_SITE = new URL(PROXY_TARGET).hostname;
 
 // Paths Frappe owns that must be forwarded to the backend during `vite dev`.
 const proxied = ["/api", "/assets", "/files", "/private", "/app", "/method"];
@@ -25,9 +26,13 @@ const proxy = Object.fromEntries(
       secure: false,
       cookieDomainRewrite: "",
       configure: (proxyServer: any) => {
-        if (!PROXY_AUTH) return;
         proxyServer.on("proxyReq", (proxyReq: any) => {
-          proxyReq.setHeader("Authorization", `token ${PROXY_AUTH}`);
+          // frappe-js-sdk auto-sends X-Frappe-Site-Name = window.location.hostname
+          // ("localhost"), which selects the wrong site on a multi-tenant bench and
+          // 404s. Force it to the real target site.
+          proxyReq.setHeader("X-Frappe-Site-Name", TARGET_SITE);
+          // Authenticate the isolated preview server-side (no secret in the client).
+          if (PROXY_AUTH) proxyReq.setHeader("Authorization", `token ${PROXY_AUTH}`);
         });
       },
     },
