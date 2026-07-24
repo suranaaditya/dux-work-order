@@ -14,6 +14,7 @@ import {
   Table,
 } from "../components/ui";
 import { Icon } from "../components/icons";
+import { WorkflowBar } from "../components/WorkflowBar";
 import { fmtDate, pct, qty } from "../lib/format";
 import type { WorkOrderBOQItem, WorkOrderContract, WorkOrderRABill } from "../lib/types";
 
@@ -101,7 +102,7 @@ function BOQByHead({ boq }: { boq: WorkOrderBOQItem[] }) {
 export default function WorkOrderDetail() {
   const { name = "" } = useParams();
   const nav = useNavigate();
-  const { data: w, isLoading, error } = useFrappeGetDoc<WorkOrderContract>("Work Order Contract", name);
+  const { data: w, isLoading, error, mutate } = useFrappeGetDoc<WorkOrderContract>("Work Order Contract", name);
   const bills = useFrappeGetDocList<WorkOrderRABill>("Work Order RA Bill", {
     fields: ["name", "bill_date", "bill_number", "gross_this_bill", "net_payable", "billing_status", "docstatus"],
     filters: [["civil_work_order", "=", name]],
@@ -144,6 +145,7 @@ export default function WorkOrderDetail() {
           </span>
         }
         sub={w.work_title}
+        right={<WorkflowBar doc={w} onChanged={() => mutate()} />}
       />
 
       {/* Commercial summary */}

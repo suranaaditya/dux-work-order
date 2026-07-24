@@ -6,6 +6,7 @@ import WorkOrderDetail from "./pages/WorkOrderDetail";
 import NewWorkOrder from "./pages/NewWorkOrder";
 import RABills from "./pages/RABills";
 import RABillDetail from "./pages/RABillDetail";
+import NewRABill from "./pages/NewRABill";
 import Soon from "./pages/Soon";
 
 export default function App() {
@@ -17,6 +18,7 @@ export default function App() {
         <Route path="/work-orders/new" element={<NewWorkOrder />} />
         <Route path="/work-orders/:name" element={<WorkOrderDetail />} />
         <Route path="/ra-bills" element={<RABills />} />
+        <Route path="/ra-bills/new" element={<NewRABill />} />
         <Route path="/ra-bills/:name" element={<RABillDetail />} />
         <Route path="/suppliers" element={<Soon title="Suppliers" />} />
         <Route path="/measurement-book" element={<Soon title="Measurement Book" />} />
