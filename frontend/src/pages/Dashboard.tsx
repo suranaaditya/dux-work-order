@@ -2,15 +2,18 @@ import { useNavigate } from "react-router-dom";
 import { useFrappeGetDocList } from "frappe-react-sdk";
 import { Card, Chip, ErrorNote, Loading, Money, PageHead, StatTile, Table, Col } from "../components/ui";
 import { fmtDate } from "../lib/format";
+import { useCompany, withCompany } from "../lib/company";
 import type { WorkOrderContract, WorkOrderRABill } from "../lib/types";
 
 const sum = (xs: number[]) => xs.reduce((a, b) => a + (b || 0), 0);
 
 export default function Dashboard() {
   const nav = useNavigate();
+  const { company } = useCompany();
 
   const wos = useFrappeGetDocList<WorkOrderContract>("Work Order Contract", {
     fields: ["name", "supplier_name", "work_title", "total_amount", "workflow_state", "docstatus", "wo_date", "company"],
+    filters: withCompany(company),
     limit: 0,
     orderBy: { field: "modified", order: "desc" },
   });
@@ -28,6 +31,7 @@ export default function Dashboard() {
       "billing_status",
       "docstatus",
     ],
+    filters: withCompany(company),
     limit: 0,
     orderBy: { field: "modified", order: "desc" },
   });

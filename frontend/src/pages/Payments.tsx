@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useFrappeGetDocList } from "frappe-react-sdk";
 import { Card, Chip, Col, ErrorNote, Loading, Money, PageHead, Table } from "../components/ui";
 import { fmtDate } from "../lib/format";
+import { useCompany, withCompany } from "../lib/company";
 
 interface PE {
   name: string;
@@ -15,9 +16,10 @@ interface PE {
 
 export default function Payments() {
   const nav = useNavigate();
+  const { company } = useCompany();
   const { data, isLoading, error } = useFrappeGetDocList<PE>("Payment Entry", {
     fields: ["name", "party", "posting_date", "paid_amount", "mode_of_payment", "reference_no", "docstatus"],
-    filters: [["payment_type", "=", "Pay"], ["party_type", "=", "Supplier"]],
+    filters: withCompany(company, [["payment_type", "=", "Pay"], ["party_type", "=", "Supplier"]]),
     orderBy: { field: "modified", order: "desc" },
     limit: 100,
   });

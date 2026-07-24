@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { Shell } from "./components/Shell";
+import { CompanyProvider } from "./lib/company";
 import Dashboard from "./pages/Dashboard";
 import WorkOrders from "./pages/WorkOrders";
 import WorkOrderDetail from "./pages/WorkOrderDetail";
@@ -20,7 +21,8 @@ import Soon from "./pages/Soon";
 
 export default function App() {
   return (
-    <Shell>
+    <CompanyProvider>
+      <Shell>
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/work-orders" element={<WorkOrders />} />
@@ -41,6 +43,7 @@ export default function App() {
         <Route path="/measurement-book" element={<Soon title="Measurement Book" />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </Shell>
+      </Shell>
+    </CompanyProvider>
   );
 }

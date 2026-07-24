@@ -4,11 +4,13 @@ import { useFrappeGetDocList } from "frappe-react-sdk";
 import { Btn, Card, Chip, Col, ErrorNote, Loading, Money, Num, PageHead, Table } from "../components/ui";
 import { Icon } from "../components/icons";
 import { fmtDate } from "../lib/format";
+import { useCompany, withCompany } from "../lib/company";
 import type { WorkOrderRABill } from "../lib/types";
 
 export default function RABills() {
   const nav = useNavigate();
   const [q, setQ] = useState("");
+  const { company } = useCompany();
 
   const { data, isLoading, error } = useFrappeGetDocList<WorkOrderRABill>("Work Order RA Bill", {
     fields: [
@@ -24,6 +26,7 @@ export default function RABills() {
       "billing_status",
       "docstatus",
     ],
+    filters: withCompany(company),
     limit: 0,
     orderBy: { field: "modified", order: "desc" },
   });

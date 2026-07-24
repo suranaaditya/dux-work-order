@@ -3,6 +3,7 @@ import { useFrappeGetDocList } from "frappe-react-sdk";
 import { Card, ErrorNote, Loading, PageHead, Btn } from "../components/ui";
 import { Icon } from "../components/icons";
 import { fmtDate, inr } from "../lib/format";
+import { useCompany, withCompany } from "../lib/company";
 
 type ColDef = { key: string; label: string; kind?: "money" | "date" | "num" | "text" };
 type Register = { key: string; label: string; doctype: string; fields: string[]; filters?: any[]; columns: ColDef[] };
@@ -55,9 +56,10 @@ function fmt(v: any, kind?: string) {
 
 export default function Reports() {
   const [reg, setReg] = useState(REGISTERS[0]);
+  const { company } = useCompany();
   const { data, isLoading, error } = useFrappeGetDocList<any>(reg.doctype, {
     fields: reg.fields,
-    filters: reg.filters,
+    filters: withCompany(company, reg.filters || []),
     orderBy: { field: "modified", order: "desc" },
     limit: 0,
   });

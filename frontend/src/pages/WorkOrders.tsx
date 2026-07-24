@@ -4,6 +4,7 @@ import { useFrappeGetDocList } from "frappe-react-sdk";
 import { Btn, Card, Chip, Col, ErrorNote, Loading, Money, PageHead, Table } from "../components/ui";
 import { Icon } from "../components/icons";
 import { fmtDate } from "../lib/format";
+import { useCompany, withCompany } from "../lib/company";
 import type { WorkOrderContract } from "../lib/types";
 
 const statusOf = (w: WorkOrderContract) =>
@@ -12,6 +13,7 @@ const statusOf = (w: WorkOrderContract) =>
 export default function WorkOrders() {
   const nav = useNavigate();
   const [q, setQ] = useState("");
+  const { company } = useCompany();
 
   const { data, isLoading, error } = useFrappeGetDocList<WorkOrderContract>("Work Order Contract", {
     fields: [
@@ -26,6 +28,7 @@ export default function WorkOrders() {
       "workflow_state",
       "docstatus",
     ],
+    filters: withCompany(company),
     limit: 0,
     orderBy: { field: "modified", order: "desc" },
   });

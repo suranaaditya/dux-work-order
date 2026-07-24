@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useFrappeGetDocList } from "frappe-react-sdk";
 import { Card, Chip, Col, ErrorNote, Loading, Money, Num, PageHead, Table } from "../components/ui";
 import { fmtDate } from "../lib/format";
+import { useCompany, withCompany } from "../lib/company";
 
 interface PI {
   name: string;
@@ -16,9 +17,10 @@ interface PI {
 
 export default function Invoices() {
   const nav = useNavigate();
+  const { company } = useCompany();
   const { data, isLoading, error } = useFrappeGetDocList<PI>("Purchase Invoice", {
     fields: ["name", "supplier", "bill_no", "posting_date", "net_total", "total_taxes_and_charges", "grand_total", "docstatus"],
-    filters: [["is_wo_ra_bill_invoice", "=", 1]],
+    filters: withCompany(company, [["is_wo_ra_bill_invoice", "=", 1]]),
     orderBy: { field: "modified", order: "desc" },
     limit: 0,
   });

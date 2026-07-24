@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useFrappeAuth } from "frappe-react-sdk";
 import { Icon } from "./icons";
+import { useCompany } from "../lib/company";
 
 type NavItem = { to: string; label: string; icon: string; soon?: boolean };
 
@@ -113,6 +114,7 @@ function Sidebar() {
 
 function Topbar() {
   const { currentUser } = useFrappeAuth();
+  const { company, setCompany, companies } = useCompany();
   return (
     <header
       style={{
@@ -129,6 +131,30 @@ function Topbar() {
         zIndex: 10,
       }}
     >
+      <select
+        value={company}
+        onChange={(e) => setCompany(e.target.value)}
+        title="Company"
+        style={{
+          height: 34,
+          maxWidth: 260,
+          padding: "0 10px",
+          borderRadius: 9,
+          border: "1px solid var(--border-strong)",
+          background: "var(--bg-surface)",
+          color: "var(--text-primary)",
+          fontSize: 12.5,
+          fontWeight: 500,
+          cursor: "pointer",
+          outline: "none",
+        }}
+      >
+        {companies.map((c) => (
+          <option key={c} value={c}>
+            {c}
+          </option>
+        ))}
+      </select>
       <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
         <div
           style={{
