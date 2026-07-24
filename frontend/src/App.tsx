@@ -3,6 +3,7 @@ import { Shell } from "./components/Shell";
 import Dashboard from "./pages/Dashboard";
 import WorkOrders from "./pages/WorkOrders";
 import WorkOrderDetail from "./pages/WorkOrderDetail";
+import NewWorkOrder from "./pages/NewWorkOrder";
 import RABills from "./pages/RABills";
 import RABillDetail from "./pages/RABillDetail";
 import Soon from "./pages/Soon";
@@ -13,6 +14,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/work-orders" element={<WorkOrders />} />
+        <Route path="/work-orders/new" element={<NewWorkOrder />} />
         <Route path="/work-orders/:name" element={<WorkOrderDetail />} />
         <Route path="/ra-bills" element={<RABills />} />
         <Route path="/ra-bills/:name" element={<RABillDetail />} />

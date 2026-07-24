@@ -11,6 +11,8 @@ const P: Record<string, string> = {
   chevron: "M9 6l6 6-6 6",
   arrowLeft: "M15 18l-6-6 6-6",
   search: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.35-4.35",
+  close: "M18 6L6 18M6 6l12 12",
+  plus: "M12 5v14M5 12h14",
 };
 
 export function Icon({

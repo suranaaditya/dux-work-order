@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useFrappeGetDocList } from "frappe-react-sdk";
-import { Card, Chip, Col, ErrorNote, Loading, Money, PageHead, Table } from "../components/ui";
+import { Btn, Card, Chip, Col, ErrorNote, Loading, Money, PageHead, Table } from "../components/ui";
 import { Icon } from "../components/icons";
 import { fmtDate } from "../lib/format";
 import type { WorkOrderContract } from "../lib/types";
@@ -66,26 +66,31 @@ export default function WorkOrders() {
         title="Work Orders"
         sub={`${(data || []).length} contracts`}
         right={
-          <div style={{ position: "relative" }}>
-            <span style={{ position: "absolute", left: 11, top: 10, color: "var(--text-muted)" }}>
-              <Icon name="search" size={16} />
-            </span>
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search WO, contractor…"
-              style={{
-                height: 38,
-                width: 260,
-                padding: "0 12px 0 34px",
-                borderRadius: 10,
-                border: "1px solid var(--border-strong)",
-                background: "var(--bg-surface)",
-                fontSize: 13,
-                outline: "none",
-              }}
-            />
-          </div>
+          <>
+            <div style={{ position: "relative" }}>
+              <span style={{ position: "absolute", left: 11, top: 10, color: "var(--text-muted)" }}>
+                <Icon name="search" size={16} />
+              </span>
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search WO, contractor…"
+                style={{
+                  height: 38,
+                  width: 240,
+                  padding: "0 12px 0 34px",
+                  borderRadius: 10,
+                  border: "1px solid var(--border-strong)",
+                  background: "var(--bg-surface)",
+                  fontSize: 13,
+                  outline: "none",
+                }}
+              />
+            </div>
+            <Btn variant="primary" onClick={() => nav("/work-orders/new")}>
+              <Icon name="plus" size={15} color="#fff" /> New Work Order
+            </Btn>
+          </>
         }
       />
       <Card style={{ padding: "6px 0" }}>
