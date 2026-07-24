@@ -40,11 +40,48 @@ export interface WorkOrderSummaryItem {
 export interface WorkOrderVariationRegisterRow {
   name: string;
   idx?: number;
-  variation?: string;
+  variation?: string; // Link -> Work Order Variation
   variation_number?: number;
   variation_date?: string;
   status?: string;
+  reason_for_change?: string;
+  value_with_tax?: number; // signed (deductive variations are negative)
+}
+
+export type VariationLineType = "Additional Qty" | "New Item" | "Reduced Qty";
+
+export interface WorkOrderVariationItem {
+  name: string;
+  idx?: number;
+  line_type?: VariationLineType;
+  original_boq_row_uid?: string; // set for Additional/Reduced Qty; empty for New Item
+  item_no?: string;
+  summary_head?: string; // Link -> Item (Work Order Items group)
+  description?: string;
+  uom?: string;
+  qty?: number; // stored SIGNED by the controller (Reduced Qty -> negative)
+  rate?: number;
+  tax_pct?: number;
+  amount?: number;
+  tax_amount?: number;
+  amount_with_tax?: number;
+  deviation_limit_pct?: number;
+  remarks?: string;
+  boq_row_uid?: string;
+  original_qty?: number;
+}
+
+export interface WorkOrderVariation extends BaseDoc {
+  work_order_contract?: string; // Link -> Work Order Contract
+  variation_number?: number;
+  variation_date?: string;
+  company?: string;
+  supplier?: string;
+  reason_for_change?: string;
+  variation_items?: WorkOrderVariationItem[];
   total_amount?: number;
+  total_tax_amount?: number;
+  total_amount_with_tax?: number;
 }
 
 export interface WorkOrderContract extends BaseDoc {

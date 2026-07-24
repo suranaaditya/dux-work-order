@@ -8,6 +8,9 @@ import NewWorkOrder from "./pages/NewWorkOrder";
 import RABills from "./pages/RABills";
 import RABillDetail from "./pages/RABillDetail";
 import NewRABill from "./pages/NewRABill";
+import Variations from "./pages/Variations";
+import NewVariation from "./pages/NewVariation";
+import VariationDetail from "./pages/VariationDetail";
 import Suppliers from "./pages/Suppliers";
 import SupplierDetail from "./pages/SupplierDetail";
 import RecordInvoice from "./pages/RecordInvoice";
@@ -27,7 +30,10 @@ export default function App() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/work-orders" element={<WorkOrders />} />
         <Route path="/work-orders/new" element={<NewWorkOrder />} />
+        <Route path="/work-orders/:name/variations/new" element={<NewVariation />} />
         <Route path="/work-orders/:name" element={<WorkOrderDetail />} />
+        <Route path="/variations" element={<Variations />} />
+        <Route path="/variations/:name" element={<VariationDetail />} />
         <Route path="/ra-bills" element={<RABills />} />
         <Route path="/ra-bills/new" element={<NewRABill />} />
         <Route path="/ra-bills/:name/record-invoice" element={<RecordInvoice />} />

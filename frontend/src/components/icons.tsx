@@ -13,6 +13,7 @@ const P: Record<string, string> = {
   search: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.35-4.35",
   close: "M18 6L6 18M6 6l12 12",
   plus: "M12 5v14M5 12h14",
+  layers: "M12 2l9 5-9 5-9-5 9-5zM3 12l9 5 9-5M3 17l9 5 9-5",
 };
 
 export function Icon({

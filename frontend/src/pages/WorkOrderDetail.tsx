@@ -1,6 +1,7 @@
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useFrappeGetDoc, useFrappeGetDocList } from "frappe-react-sdk";
 import {
+  Btn,
   Card,
   Chip,
   Col,
@@ -196,23 +197,39 @@ export default function WorkOrderDetail() {
       {boq.length > 0 && <BOQByHead boq={boq} />}
 
       {/* Variations */}
-      {variations.length > 0 && (
-        <Card style={{ padding: "18px 0 6px", marginTop: 18 }}>
-          <div style={{ padding: "0 18px" }}>
-            <SectionTitle>Variations</SectionTitle>
-          </div>
+      <Card style={{ padding: "18px 0 6px", marginTop: 18 }}>
+        <div style={{ padding: "0 18px" }}>
+          <SectionTitle
+            right={
+              w.docstatus === 1 ? (
+                <Btn variant="secondary" onClick={() => nav(`/work-orders/${encodeURIComponent(w.name)}/variations/new`)}>
+                  <Icon name="plus" size={15} /> New Variation
+                </Btn>
+              ) : undefined
+            }
+          >
+            Variations
+          </SectionTitle>
+        </div>
+        {variations.length ? (
           <Table
             cols={[
-              { head: "Variation", cell: (v) => v.variation || `VO-${v.variation_number}` },
+              { head: "Variation", cell: (v) => <span style={{ fontWeight: 600 }}>{v.variation || `VO-${v.variation_number}`}</span> },
               { head: "Date", cell: (v) => <span className="mono">{fmtDate(v.variation_date)}</span> },
-              { head: "Value", align: "right", cell: (v) => <Money v={v.total_amount} /> },
+              { head: "Reason", cell: (v) => <span style={{ display: "inline-block", maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", verticalAlign: "bottom" }}>{v.reason_for_change || "—"}</span> },
+              { head: "Value (incl. tax)", align: "right", cell: (v) => <Money v={v.value_with_tax} /> },
               { head: "Status", align: "center", cell: (v) => <Chip label={v.status} /> },
             ]}
             rows={variations}
             rowKey={(v) => v.name}
+            onRowClick={(v) => v.variation && nav(`/variations/${encodeURIComponent(v.variation)}`)}
           />
-        </Card>
-      )}
+        ) : (
+          <div style={{ padding: "4px 18px 16px", color: "var(--text-muted)", fontSize: 13 }}>
+            {w.docstatus === 1 ? "No variations raised. Use “New Variation” to change scope." : "Approve the work order to raise variations."}
+          </div>
+        )}
+      </Card>
 
       {/* Linked RA Bills */}
       <Card style={{ padding: "18px 0 6px", marginTop: 18 }}>
