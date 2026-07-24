@@ -12,8 +12,8 @@ const NAV: NavItem[] = [
   { to: "/invoices", label: "Invoices", icon: "rupee" },
   { to: "/suppliers", label: "Suppliers", icon: "users" },
   { to: "/measurement-book", label: "Measurement Book", icon: "ruler", soon: true },
-  { to: "/payments", label: "Payments", icon: "rupee", soon: true },
-  { to: "/reports", label: "Reports", icon: "report", soon: true },
+  { to: "/payments", label: "Payments", icon: "rupee" },
+  { to: "/reports", label: "Reports", icon: "report" },
 ];
 
 function Brand() {

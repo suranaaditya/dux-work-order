@@ -12,6 +12,10 @@ import SupplierDetail from "./pages/SupplierDetail";
 import RecordInvoice from "./pages/RecordInvoice";
 import Invoices from "./pages/Invoices";
 import InvoiceDetail from "./pages/InvoiceDetail";
+import RecordPayment from "./pages/RecordPayment";
+import Payments from "./pages/Payments";
+import PaymentDetail from "./pages/PaymentDetail";
+import Reports from "./pages/Reports";
 import Soon from "./pages/Soon";
 
 export default function App() {
@@ -27,12 +31,14 @@ export default function App() {
         <Route path="/ra-bills/:name/record-invoice" element={<RecordInvoice />} />
         <Route path="/ra-bills/:name" element={<RABillDetail />} />
         <Route path="/invoices" element={<Invoices />} />
+        <Route path="/invoices/:name/pay" element={<RecordPayment />} />
         <Route path="/invoices/:name" element={<InvoiceDetail />} />
+        <Route path="/payments" element={<Payments />} />
+        <Route path="/payments/:name" element={<PaymentDetail />} />
+        <Route path="/reports" element={<Reports />} />
         <Route path="/suppliers" element={<Suppliers />} />
         <Route path="/suppliers/:name" element={<SupplierDetail />} />
         <Route path="/measurement-book" element={<Soon title="Measurement Book" />} />
-        <Route path="/payments" element={<Soon title="Payments" />} />
-        <Route path="/reports" element={<Soon title="Reports" />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Shell>

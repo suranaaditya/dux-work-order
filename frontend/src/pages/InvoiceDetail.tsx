@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useFrappeGetDoc, useFrappePostCall } from "frappe-react-sdk";
 import { Btn, Card, Chip, ErrorNote, KV, Loading, Money, Num, PageHead, SectionTitle, StatTile } from "../components/ui";
 import { Icon } from "../components/icons";
@@ -7,6 +7,7 @@ import { fmtDate } from "../lib/format";
 
 export default function InvoiceDetail() {
   const { name = "" } = useParams();
+  const nav = useNavigate();
   const { data: pi, isLoading, error, mutate } = useFrappeGetDoc<any>("Purchase Invoice", name);
   const submitCall = useFrappePostCall("frappe.client.submit");
   const [actErr, setActErr] = useState<string | null>(null);
@@ -17,6 +18,11 @@ export default function InvoiceDetail() {
 
   const status = pi.docstatus === 2 ? "Cancelled" : pi.docstatus === 1 ? "Submitted" : "Draft";
   const raBills: string[] = Array.from(new Set((pi.items || []).map((i: any) => i.wo_ra_bill).filter(Boolean)));
+
+  // Split taxes into GST (added) vs TDS (deducted) — TDS lands as a Deduct row on submit.
+  const isTds = (t: any) => t.add_deduct_tax === "Deduct" || /TDS|withholding/i.test(t.account_head || "");
+  const gstAmount = (pi.taxes || []).filter((t: any) => !isTds(t)).reduce((s: number, t: any) => s + (t.tax_amount || 0), 0);
+  const tdsAmount = (pi.taxes || []).filter(isTds).reduce((s: number, t: any) => s + (t.tax_amount || 0), 0);
 
   async function submit() {
     setActErr(null);
@@ -37,20 +43,24 @@ export default function InvoiceDetail() {
         title={<span style={{ display: "inline-flex", alignItems: "center", gap: 12 }}>{pi.name}<Chip label={status} /></span>}
         sub={pi.bill_no ? `Supplier invoice ${pi.bill_no}` : pi.supplier}
         right={
-          pi.docstatus === 0 ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
-              <Btn variant="primary" onClick={submit} disabled={submitCall.loading}>{submitCall.loading ? "Submitting…" : "Submit invoice"}</Btn>
-              {actErr && <span style={{ fontSize: 12, color: "var(--err)" }}>{actErr}</span>}
-            </div>
-          ) : null
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+            {pi.docstatus === 0 && <Btn variant="primary" onClick={submit} disabled={submitCall.loading}>{submitCall.loading ? "Submitting…" : "Submit invoice"}</Btn>}
+            {pi.docstatus === 1 && (pi.outstanding_amount || 0) > 0 && (
+              <Btn variant="primary" onClick={() => nav(`/invoices/${encodeURIComponent(pi.name)}/pay`)}>
+                <Icon name="rupee" size={15} color="#fff" /> Record Payment
+              </Btn>
+            )}
+            {actErr && <span style={{ fontSize: 12, color: "var(--err)" }}>{actErr}</span>}
+          </div>
         }
       />
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 14, marginBottom: 18 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 14, marginBottom: 18 }}>
         <StatTile accent label="Taxable (net)" value={<Money v={pi.net_total} dec={0} />} />
-        <StatTile label="Total GST" value={<Num v={pi.total_taxes_and_charges} />} />
+        <StatTile label="GST" value={<Num v={gstAmount} />} />
+        {tdsAmount ? <StatTile label="TDS deducted" value={<Num v={tdsAmount} />} /> : null}
         <StatTile label="Grand total" value={<Money v={pi.grand_total} dec={0} />} />
-        {pi.apply_tds ? <StatTile label="TDS" value={pi.tax_withholding_category || "—"} /> : null}
+        {pi.docstatus === 1 ? <StatTile label="Outstanding" value={<Money v={pi.outstanding_amount} dec={0} />} /> : null}
       </div>
 
       <Card style={{ padding: 18, marginBottom: 18 }}>
@@ -61,7 +71,7 @@ export default function InvoiceDetail() {
           <KV label="Posting date"><span className="mono">{fmtDate(pi.posting_date)}</span></KV>
           <KV label="GST treatment">{pi.taxes_and_charges || "No GST"}</KV>
           <KV label="Reverse charge">{pi.is_reverse_charge ? "Yes" : "No"}</KV>
-          <KV label="TDS">{pi.apply_tds ? pi.tax_withholding_category : "No"}</KV>
+          <KV label="TDS">{pi.apply_tds ? (tdsAmount ? <><Num v={tdsAmount} /> deducted</> : "Applied (on submit)") : "No"}</KV>
           <KV label="RA Bills">{raBills.map((b) => <Link key={b} to={`/ra-bills/${encodeURIComponent(b)}`} style={{ color: "var(--iris)", marginRight: 8 }}>{b}</Link>)}</KV>
         </div>
       </Card>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useFrappeCreateDoc, useFrappeGetDoc, useFrappeGetDocList, useFrappePostCall } from "frappe-react-sdk";
+import { useFrappeCreateDoc, useFrappeGetDoc, useFrappeGetDocList, useFrappePostCall, useFrappeUpdateDoc } from "frappe-react-sdk";
 import { Card, PageHead, SectionTitle, Btn, Money, Num, ErrorNote, Loading } from "../components/ui";
 import { Icon } from "../components/icons";
 import { Field, TextInput, DateInput, LinkField } from "../components/form";
@@ -29,9 +29,14 @@ export default function RecordInvoice() {
   const { data: bill, isLoading, error } = useFrappeGetDoc<WorkOrderRABill>("Work Order RA Bill", name);
   const getItems = useFrappePostCall(ITEMS_METHOD);
   const { createDoc, loading: creating } = useFrappeCreateDoc();
+  const { updateDoc } = useFrappeUpdateDoc();
 
   const company = bill?.company;
   const supplier = bill?.supplier;
+
+  // TDS is driven by the SUPPLIER's tax_withholding_category (no per-PI field);
+  // apply_tds on the PI then computes TDS on submit.
+  const { data: supplierDoc } = useFrappeGetDoc<any>("Supplier", supplier || undefined);
 
   // company abbr (for item-tax-template names)
   const { data: companyDoc } = useFrappeGetDoc<any>("Company", company || undefined);
@@ -101,6 +106,12 @@ export default function RecordInvoice() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gstTemplates.data]);
 
+  // default the TDS category to whatever the supplier already has
+  useEffect(() => {
+    if (supplierDoc?.tax_withholding_category && !tdsCategory) setTdsCategory(supplierDoc.tax_withholding_category);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supplierDoc]);
+
   if (isLoading) return <Loading label="Loading RA bill…" />;
   if (error) return <ErrorNote error={error} />;
   if (!bill) return <ErrorNote error="RA bill not found." />;
@@ -111,6 +122,10 @@ export default function RecordInvoice() {
   async function submit() {
     setSubmitErr(null);
     try {
+      // TDS lives on the Supplier — set/refresh it there before invoicing.
+      if (applyTds && tdsCategory && supplierDoc && tdsCategory !== supplierDoc.tax_withholding_category) {
+        await updateDoc("Supplier", supplier!, { tax_withholding_category: tdsCategory });
+      }
       let taxes: any[] = [];
       const useGst = gstTemplate && gstTemplate !== "__none__";
       if (useGst) {
@@ -154,7 +169,6 @@ export default function RecordInvoice() {
           wo_ra_bill_item: l.wo_ra_bill_item,
         })),
         apply_tds: applyTds ? 1 : 0,
-        tax_withholding_category: applyTds ? tdsCategory || undefined : undefined,
       };
       const doc = await createDoc("Purchase Invoice", payload);
       nav(`/invoices/${encodeURIComponent(doc.name)}`);
@@ -243,6 +257,11 @@ export default function RecordInvoice() {
             </div>
           )}
         </div>
+        {applyTds && (
+          <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 10 }}>
+            TDS is deducted on submit using the supplier's Tax Withholding Category — this sets it on <b>{supplier}</b>.
+          </div>
+        )}
       </Card>
 
       {submitErr && (
