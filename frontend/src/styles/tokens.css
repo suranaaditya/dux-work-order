@@ -1,0 +1,61 @@
+/*
+ * DUX Digitech design tokens (light theme) — reconstructed from the SiteBill
+ * design handoff. Variable names match the prototype so screen ports stay
+ * faithful. Swap in the official _ds bundle later for pixel-exact fidelity.
+ */
+:root {
+  /* Brand */
+  --iris: #5c4de6;
+  --iris-deep: #4a3bc4;
+  --iris-tint: #ecebfb;
+  --cyan: #0e9c8b; /* data accent — every amount/number */
+  --cyan-tint: #e2f4f1;
+  --gradient-accent: linear-gradient(90deg, var(--iris), var(--cyan));
+
+  /* Surfaces */
+  --bg-app: #f3f4f7;
+  --bg-card: #ffffff;
+  --bg-surface: #ffffff;
+  --bg-sunken: #f6f7f9;
+  --row-hover: #f6f6fc;
+
+  /* Borders */
+  --border-subtle: #edeef2;
+  --border-strong: #e0e2e9;
+
+  /* Text */
+  --text-primary: #16181f;
+  --text-secondary: #4a4f5c;
+  --text-muted: #8a93a3;
+  --text-faint: #aeb4c0;
+
+  /* Status */
+  --ok: #12a150;
+  --ok-bg: #e5f5ec;
+  --pending: #c07a12;
+  --pending-bg: #fbf1df;
+  --err: #d93b52;
+  --err-bg: #fbe9ec;
+  --info: var(--iris);
+  --info-bg: var(--iris-tint);
+
+  /* Radii */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+  --r-pill: 999px;
+
+  /* Shadows */
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+  --shadow-pop: 0 12px 32px rgba(16, 24, 40, 0.14);
+  --shadow-brand: 0 6px 16px rgba(92, 77, 230, 0.28);
+  --inset-hi: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+
+  /* Motion */
+  --spring: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Type */
+  --font-ui: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", "Roboto Mono", ui-monospace, "Menlo", monospace;
+}
