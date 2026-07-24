@@ -9,6 +9,9 @@ import RABillDetail from "./pages/RABillDetail";
 import NewRABill from "./pages/NewRABill";
 import Suppliers from "./pages/Suppliers";
 import SupplierDetail from "./pages/SupplierDetail";
+import RecordInvoice from "./pages/RecordInvoice";
+import Invoices from "./pages/Invoices";
+import InvoiceDetail from "./pages/InvoiceDetail";
 import Soon from "./pages/Soon";
 
 export default function App() {
@@ -21,7 +24,10 @@ export default function App() {
         <Route path="/work-orders/:name" element={<WorkOrderDetail />} />
         <Route path="/ra-bills" element={<RABills />} />
         <Route path="/ra-bills/new" element={<NewRABill />} />
+        <Route path="/ra-bills/:name/record-invoice" element={<RecordInvoice />} />
         <Route path="/ra-bills/:name" element={<RABillDetail />} />
+        <Route path="/invoices" element={<Invoices />} />
+        <Route path="/invoices/:name" element={<InvoiceDetail />} />
         <Route path="/suppliers" element={<Suppliers />} />
         <Route path="/suppliers/:name" element={<SupplierDetail />} />
         <Route path="/measurement-book" element={<Soon title="Measurement Book" />} />

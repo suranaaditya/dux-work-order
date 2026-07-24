@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useFrappeGetDoc, useFrappePostCall } from "frappe-react-sdk";
 import {
   Btn,
@@ -35,11 +35,11 @@ function BackLink() {
   );
 }
 
-/* RA Bills have no workflow — a Draft (docstatus 0) is submitted to lock it. */
+/* RA Bill actions: submit a draft; record a Purchase Invoice once submitted. */
 function BillActions({ b, onChanged }: { b: WorkOrderRABill; onChanged: () => void }) {
+  const nav = useNavigate();
   const submitCall = useFrappePostCall("frappe.client.submit");
   const [err, setErr] = useState<string | null>(null);
-  if (b.docstatus !== 0) return null;
   async function submit() {
     setErr(null);
     try {
@@ -49,11 +49,21 @@ function BillActions({ b, onChanged }: { b: WorkOrderRABill; onChanged: () => vo
       setErr(e?.message || "Could not submit.");
     }
   }
+  const fullyInvoiced = ["Fully Invoiced", "Closed", "Cancelled"].includes((b as any).billing_status);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
-      <Btn variant="primary" onClick={submit} disabled={submitCall.loading}>
-        {submitCall.loading ? "Submitting…" : "Submit bill"}
-      </Btn>
+      <div style={{ display: "flex", gap: 10 }}>
+        {b.docstatus === 0 && (
+          <Btn variant="primary" onClick={submit} disabled={submitCall.loading}>
+            {submitCall.loading ? "Submitting…" : "Submit bill"}
+          </Btn>
+        )}
+        {b.docstatus === 1 && !fullyInvoiced && (
+          <Btn variant="primary" onClick={() => nav(`/ra-bills/${encodeURIComponent(b.name)}/record-invoice`)}>
+            <Icon name="bill" size={15} color="#fff" /> Record Invoice
+          </Btn>
+        )}
+      </div>
       {err && <span style={{ fontSize: 12, color: "var(--err)" }}>{err}</span>}
     </div>
   );
