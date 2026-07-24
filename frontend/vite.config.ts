@@ -7,6 +7,13 @@ import { resolve } from "path";
 // Override with VITE_PROXY_TARGET when tunnelling (e.g. http://localhost:8000).
 const PROXY_TARGET = process.env.VITE_PROXY_TARGET || "https://erp.jewonline.in";
 
+// For the isolated dev preview against a live site, the proxy injects an API
+// token ("key:secret") on every forwarded request — server-side only, so no
+// secret ever reaches the browser. Set via the shell env when starting vite.
+// In production (served same-origin by Frappe) this is unset and cookie auth
+// is used instead.
+const PROXY_AUTH = process.env.VITE_FRAPPE_TOKEN;
+
 // Paths Frappe owns that must be forwarded to the backend during `vite dev`.
 const proxied = ["/api", "/assets", "/files", "/private", "/app", "/method"];
 const proxy = Object.fromEntries(
@@ -17,6 +24,12 @@ const proxy = Object.fromEntries(
       changeOrigin: true,
       secure: false,
       cookieDomainRewrite: "",
+      configure: (proxyServer: any) => {
+        if (!PROXY_AUTH) return;
+        proxyServer.on("proxyReq", (proxyReq: any) => {
+          proxyReq.setHeader("Authorization", `token ${PROXY_AUTH}`);
+        });
+      },
     },
   ]),
 );
