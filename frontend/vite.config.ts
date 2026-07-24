@@ -1,6 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { copyFileSync, existsSync, mkdirSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { resolve } from "path";
 
 // The live Frappe site the dev server proxies to for real data + auth.
@@ -50,7 +50,14 @@ function emitWwwEntry() {
       const wwwDir = resolve(__dirname, "../dux_civil_works/www");
       if (existsSync(built)) {
         if (!existsSync(wwwDir)) mkdirSync(wwwDir, { recursive: true });
-        copyFileSync(built, resolve(wwwDir, "sitebill.html"));
+        let html = readFileSync(built, "utf8");
+        // Inject Frappe's per-session CSRF token so SPA writes (POST/PUT/DELETE)
+        // pass validation. Frappe renders {{ csrf_token }} when serving this www
+        // page; frappe-react-sdk reads window.csrf_token and skips the literal
+        // placeholder if it isn't rendered (e.g. the vite dev server).
+        const csrfTag = '<script>window.csrf_token = "{{ csrf_token }}";</script>';
+        html = html.includes("</head>") ? html.replace("</head>", `    ${csrfTag}\n  </head>`) : csrfTag + html;
+        writeFileSync(resolve(wwwDir, "sitebill.html"), html);
       }
     },
   };
