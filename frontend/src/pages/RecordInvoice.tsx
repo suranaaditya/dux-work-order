@@ -97,14 +97,29 @@ export default function RecordInvoice() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name, itemTaxTemplates.data, bill]);
 
-  // default GST treatment to In-state once options load
+  // Default the GST treatment from the supplier's GST state vs the company's.
+  // india_compliance rejects CGST/SGST on inter-state supplies and any GST on
+  // an unregistered supplier, so we must pick In-state / Out-state / No-GST to
+  // match — not blindly default to In-state (which errored for out-of-state or
+  // unregistered suppliers). State = first 2 digits of the GSTIN.
   useEffect(() => {
-    if (!gstTemplate && gstTemplates.data?.length) {
-      const inState = gstTemplates.data.find((t: any) => /In-state/i.test(t.name) && !/RCM/i.test(t.name));
-      setGstTemplate(inState?.name || gstTemplates.data[0].name);
+    if (gstTemplate || !gstTemplates.data?.length) return;
+    if (!supplierDoc || !companyDoc) return; // wait until both GSTINs are known
+    const opts: string[] = gstTemplates.data.map((t: any) => t.name);
+    const pick = (re: RegExp) => opts.find((n) => re.test(n) && !/RCM/i.test(n));
+    const supGstin = String(supplierDoc.gstin || "").trim();
+    const coGstin = String(companyDoc.gstin || "").trim();
+    let chosen: string | undefined;
+    if (!supGstin) {
+      chosen = "__none__"; // unregistered supplier — no input GST
+    } else if (coGstin && supGstin.slice(0, 2) === coGstin.slice(0, 2)) {
+      chosen = pick(/In-state/i); // same state → CGST/SGST
+    } else {
+      chosen = pick(/Out-state/i); // different state → IGST
     }
+    setGstTemplate(chosen || pick(/In-state/i) || opts[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gstTemplates.data]);
+  }, [gstTemplates.data, supplierDoc, companyDoc]);
 
   // default the TDS category to whatever the supplier already has
   useEffect(() => {
@@ -173,8 +188,7 @@ export default function RecordInvoice() {
       const doc = await createDoc("Purchase Invoice", payload);
       nav(`/invoices/${encodeURIComponent(doc.name)}`);
     } catch (e: any) {
-      const m = e?.message || e?._server_messages || e?.exception || "Could not create the invoice.";
-      setSubmitErr(typeof m === "string" ? m : JSON.stringify(m));
+      setSubmitErr(serverErr(e));
     }
   }
 
@@ -295,4 +309,21 @@ const selStyle: React.CSSProperties = {
 
 function stripHtml(s: string) {
   return String(s).replace(/\\n/g, "\n");
+}
+
+// Frappe puts the human-readable reason (e.g. the india_compliance GST error)
+// in `_server_messages`; `e.message` is often just the generic "There was an
+// error while creating the document". Prefer the real reason.
+function serverErr(e: any): string {
+  const raw = e?._server_messages || e?.response?.data?._server_messages;
+  if (raw) {
+    try {
+      const msgs = JSON.parse(raw).map((s: any) => {
+        try { return JSON.parse(s).message; } catch { return String(s); }
+      });
+      const joined = msgs.filter(Boolean).join("\n");
+      if (joined) return joined;
+    } catch { /* fall through to generic below */ }
+  }
+  return e?.exception || e?.message || "Could not create the invoice.";
 }
