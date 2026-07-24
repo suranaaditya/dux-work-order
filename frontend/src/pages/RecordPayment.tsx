@@ -34,7 +34,8 @@ export default function RecordPayment() {
         setBase(pe);
         setF({
           paid_amount: String(pe.paid_amount || pe.received_amount || ""),
-          mode_of_payment: pe.mode_of_payment || "",
+          // Mode is required — ERPNext wrongly defaults a blank mode to "Bank".
+          mode_of_payment: pe.mode_of_payment || "Cash",
           paid_from: pe.paid_from || "",
           reference_no: "",
           reference_date: todayISO(),
@@ -106,8 +107,8 @@ export default function RecordPayment() {
           <Field label="Paid from (bank / cash)" required hint="Account the money is paid from">
             <LinkField doctype="Account" value={f.paid_from} onChange={(v) => setForm("paid_from", v)} placeholder="Bank / cash account" extraFilters={[["company", "=", company], ["is_group", "=", 0], ["account_type", "in", ["Bank", "Cash"]]]} />
           </Field>
-          <Field label="Mode of payment">
-            <LinkField doctype="Mode of Payment" value={f.mode_of_payment} onChange={(v) => setForm("mode_of_payment", v)} placeholder="NEFT / Cheque / Cash" />
+          <Field label="Mode of payment" required>
+            <LinkField doctype="Mode of Payment" value={f.mode_of_payment} onChange={(v) => setForm("mode_of_payment", v)} placeholder="Cash / Cheque / Wire Transfer" />
           </Field>
           <Field label="Reference no (UTR / cheque)">
             <TextInput value={f.reference_no} onChange={(v) => setForm("reference_no", v)} placeholder="e.g. UTR / cheque no" />
@@ -126,7 +127,7 @@ export default function RecordPayment() {
       )}
 
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, alignItems: "center" }}>
-        <Btn variant="primary" onClick={submit} disabled={creating || !n(f.paid_amount) || !f.paid_from}>
+        <Btn variant="primary" onClick={submit} disabled={creating || !n(f.paid_amount) || !f.paid_from || !f.mode_of_payment}>
           {creating ? "Recording…" : "Record Payment (Draft)"}
         </Btn>
       </div>
