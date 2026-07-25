@@ -161,8 +161,12 @@ function PortalHome() {
               <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", fontSize: 12, color: "var(--text-muted)" }}>
                 <span>{pct(prog)} certified · {w.bills} claim{w.bills === 1 ? "" : "s"} approved</span>
                 {w.open_claims > 0 && <Chip label={`${w.open_claims} in progress`} />}
+                <Link to={`/portal/work-orders/${encodeURIComponent(w.name)}`} style={{
+                  marginLeft: "auto", border: "1px solid var(--border-strong)", padding: "6px 12px",
+                  borderRadius: 8, fontSize: 12.5, fontWeight: 600, color: "var(--text-primary)",
+                }}>View details</Link>
                 <Link to={`/portal/claims/new?wo=${encodeURIComponent(w.name)}`} style={{
-                  marginLeft: "auto", background: "#c96a10", color: "#fff", padding: "7px 13px",
+                  background: "#c96a10", color: "#fff", padding: "7px 13px",
                   borderRadius: 8, fontSize: 12.5, fontWeight: 600,
                 }}>Raise a claim</Link>
               </div>
@@ -174,7 +178,137 @@ function PortalHome() {
   );
 }
 
+
+/* ---------------- one work order ---------------- */
+
+function PortalWorkOrder() {
+  const { name = "" } = useParams();
+  const { data: w, isLoading, error } = useFrappeGetDoc<any>("Work Order Contract", name);
+  const claims = useFrappeGetDocList<WorkOrderRABill>("Work Order RA Bill", {
+    fields: ["name", "bill_date", "net_payable", "claimed_net_payable", "review_state", "docstatus"],
+    filters: [["civil_work_order", "=", name]],
+    limit: 0,
+    orderBy: { field: "creation", order: "desc" },
+  }, name ? `portal-wo-claims-${name}` : null);
+
+  if (isLoading) return <Loading label="Loading work order…" />;
+  if (error) return <ErrorNote error={error} />;
+  if (!w) return <ErrorNote error="Work order not found." />;
+
+  const boq = w.boq_items || [];
+  const certified = (claims.data || [])
+    .filter((c) => c.docstatus === 1)
+    .reduce((s, c) => s + n(c.net_payable), 0);
+
+  return (
+    <>
+      <Link to="/portal" style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12.5, color: "var(--text-muted)", marginBottom: 8 }}>
+        <Icon name="arrowLeft" size={15} /> Your work orders
+      </Link>
+      <PageHead
+        title={w.work_title || w.name}
+        sub={<><span className="mono">{w.name}</span> · {w.company}{w.site_location ? ` · ${w.site_location}` : ""}</>}
+        right={<Link to={`/portal/claims/new?wo=${encodeURIComponent(w.name)}`} style={{
+          background: "#c96a10", color: "#fff", padding: "9px 15px", borderRadius: 9,
+          fontSize: 13, fontWeight: 650, display: "inline-block",
+        }}>Raise a claim</Link>}
+      />
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 14, marginBottom: 18 }}>
+        <Card style={{ padding: "14px 16px" }}>
+          <div className="eyebrow">Awarded value</div>
+          <div style={{ fontSize: 17, marginTop: 5 }}><Money v={w.total_amount} dec={0} /></div>
+        </Card>
+        <Card style={{ padding: "14px 16px" }}>
+          <div className="eyebrow">Certified to date</div>
+          <div className="mono" style={{ fontSize: 17, marginTop: 5, color: "var(--ok)" }}>{num(certified)}</div>
+        </Card>
+        <Card style={{ padding: "14px 16px" }}>
+          <div className="eyebrow">Retention held back</div>
+          <div className="mono" style={{ fontSize: 17, marginTop: 5 }}>{w.retention_percentage ? pct(w.retention_percentage) : "None"}</div>
+        </Card>
+        <Card style={{ padding: "14px 16px" }}>
+          <div className="eyebrow">Completion by</div>
+          <div className="mono" style={{ fontSize: 15, marginTop: 6 }}>{fmtDate(w.scheduled_completion_date)}</div>
+        </Card>
+      </div>
+
+      <Card style={{ padding: "18px 0 6px", marginBottom: 18 }}>
+        <div style={{ padding: "0 18px" }}>
+          <SectionTitle right={<span style={{ fontSize: 12, color: "var(--text-muted)" }}>{boq.length} items</span>}>
+            Schedule of work &amp; rates
+          </SectionTitle>
+          <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 10 }}>
+            The agreed scope and rates. Claim against these quantities as work is completed.
+          </div>
+        </div>
+        <div className="scroll-x">
+          <table style={{ fontSize: 13 }}>
+            <thead>
+              <tr>{["#", "Description", "UOM", "Qty", "Rate", "Amount"].map((h, i) => (
+                <th key={i} style={{ textAlign: i > 2 ? "right" : "left", padding: "10px 14px", fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--text-muted)", borderBottom: "1px solid var(--border-subtle)", whiteSpace: "nowrap" }}>{h}</th>
+              ))}</tr>
+            </thead>
+            <tbody>
+              {boq.map((r: any) => (
+                <tr key={r.name}>
+                  <td style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-subtle)" }}><span className="mono" style={{ color: "var(--text-muted)" }}>{r.item_no}</span></td>
+                  <td style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-subtle)", maxWidth: 420 }}>{r.description}</td>
+                  <td style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-subtle)" }}>{r.uom}</td>
+                  <td style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-subtle)", textAlign: "right" }}><span className="mono">{fq(r.estimated_qty)}</span></td>
+                  <td style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-subtle)", textAlign: "right" }}><span className="mono">{num(r.rate)}</span></td>
+                  <td style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-subtle)", textAlign: "right" }}><span className="mono" style={{ fontWeight: 600 }}>{num(r.amount)}</span></td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={5} style={{ padding: "12px 14px", textAlign: "right", fontWeight: 650, borderTop: "2px solid var(--border-strong)" }}>Total (excl. GST)</td>
+                <td style={{ padding: "12px 14px", textAlign: "right", borderTop: "2px solid var(--border-strong)" }}>
+                  <span className="mono" style={{ fontWeight: 700 }}>{num(w.total_amount)}</span>
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </Card>
+
+      <Card style={{ padding: "18px 0 6px" }}>
+        <div style={{ padding: "0 18px" }}><SectionTitle>Your claims on this work order</SectionTitle></div>
+        {(claims.data || []).length === 0 ? (
+          <div style={{ padding: 20, color: "var(--text-muted)", fontSize: 13 }}>No claims raised yet.</div>
+        ) : (
+          <div className="scroll-x">
+            <table style={{ fontSize: 13 }}>
+              <thead>
+                <tr>{["Claim", "Date", "Claimed", "Certified", "Status"].map((h, i) => (
+                  <th key={i} style={{ textAlign: i > 1 && i < 4 ? "right" : "left", padding: "10px 14px", fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--text-muted)", borderBottom: "1px solid var(--border-subtle)" }}>{h}</th>
+                ))}</tr>
+              </thead>
+              <tbody>
+                {(claims.data || []).map((c) => {
+                  const st = claimStatus(c);
+                  return (
+                    <tr key={c.name} style={{ cursor: "pointer" }} onClick={() => { window.location.hash = `/portal/claims/${encodeURIComponent(c.name)}`; }}>
+                      <td style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-subtle)", fontWeight: 600 }}>{c.name}</td>
+                      <td style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-subtle)" }}><span className="mono">{fmtDate(c.bill_date)}</span></td>
+                      <td style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-subtle)", textAlign: "right" }}><span className="mono">{n(c.claimed_net_payable) ? num(c.claimed_net_payable) : "—"}</span></td>
+                      <td style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-subtle)", textAlign: "right" }}><span className="mono" style={{ fontWeight: 600 }}>{num(c.net_payable)}</span></td>
+                      <td style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-subtle)" }}><span style={{ color: st.tone, fontWeight: 600, fontSize: 12 }}>{st.label}</span></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </>
+  );
+}
+
 /* ---------------- my claims ---------------- */
+
 
 function PortalClaims() {
   const { data, isLoading, error } = useFrappeGetDocList<WorkOrderRABill>("Work Order RA Bill", {
@@ -328,7 +462,7 @@ function PortalNewClaim() {
           <div className="scroll-x">
             <table style={{ fontSize: 13 }}>
               <thead>
-                <tr>{["#", "Item", "UOM", "Sanctioned", "Already billed", "Total to date", "This claim"].map((h, i) => (
+                <tr>{["#", "Item", "UOM", "Rate", "Sanctioned", "Already billed", "Total to date", "This claim", "Claim value"].map((h, i) => (
                   <th key={i} style={{ textAlign: i > 2 ? "right" : "left", padding: "10px 14px", fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--text-muted)", borderBottom: "1px solid var(--border-subtle)", whiteSpace: "nowrap" }}>{h}</th>
                 ))}</tr>
               </thead>
@@ -338,6 +472,10 @@ function PortalNewClaim() {
                     <td style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-subtle)" }}><span className="mono" style={{ color: "var(--text-muted)" }}>{e.item_no}</span></td>
                     <td style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-subtle)", maxWidth: 300 }}>{e.description}</td>
                     <td style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-subtle)" }}>{e.uom}</td>
+                    <td style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-subtle)", textAlign: "right" }}>
+                      <span className="mono">{num(e.rate)}</span>
+                      {e.rate_varies ? <span title="This item is billed across scopes with different rates" style={{ marginLeft: 4, fontSize: 10, color: "var(--text-faint)" }}>*</span> : null}
+                    </td>
                     <td style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-subtle)", textAlign: "right" }}><span className="mono" style={{ color: "var(--text-muted)" }}>{fq(e.total_sanctioned_qty)}</span></td>
                     <td style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-subtle)", textAlign: "right" }}><span className="mono" style={{ color: "var(--text-muted)" }}>{fq(e._prev)}</span></td>
                     <td style={{ padding: "8px 14px", borderBottom: "1px solid var(--border-subtle)", textAlign: "right" }}>
@@ -353,6 +491,9 @@ function PortalNewClaim() {
                     <td style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-subtle)", textAlign: "right" }}>
                       <span className="mono" style={{ fontWeight: 700, color: thisClaim(e) > 0 ? "#c96a10" : "var(--text-faint)" }}>{fq(thisClaim(e))}</span>
                     </td>
+                    <td style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-subtle)", textAlign: "right" }}>
+                      <span className="mono" style={{ fontWeight: 700, color: thisClaim(e) > 0 ? "var(--text-primary)" : "var(--text-faint)" }}>{num(thisClaim(e) * n(e.rate))}</span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -365,6 +506,18 @@ function PortalNewClaim() {
         <Card style={{ padding: 15, marginBottom: 16, borderColor: "var(--err-bg)" }}>
           <div style={{ color: "var(--err)", fontWeight: 600, marginBottom: 3 }}>Could not send this claim</div>
           <div style={{ fontSize: 12.5, color: "var(--text-secondary)", whiteSpace: "pre-wrap" }}>{err}</div>
+        </Card>
+      )}
+
+      {wo && entries.length > 0 && (
+        <Card style={{ padding: "14px 18px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 10 }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>Value of this claim</span>
+          <span className="mono" style={{ fontSize: 19, fontWeight: 700, color: "#c96a10" }}>
+            {num(entries.reduce((sum, e) => sum + thisClaim(e) * n(e.rate), 0))}
+          </span>
+          <span style={{ flexBasis: "100%", fontSize: 11.5, color: "var(--text-muted)" }}>
+            Before retention and any deductions the client applies. GST is added on the tax invoice.
+          </span>
         </Card>
       )}
 
@@ -504,6 +657,7 @@ export default function Portal() {
     <PortalShell>
       <Routes>
         <Route path="/" element={<PortalHome />} />
+        <Route path="/work-orders/:name" element={<PortalWorkOrder />} />
         <Route path="/claims" element={<PortalClaims />} />
         <Route path="/claims/new" element={<PortalNewClaim />} />
         <Route path="/claims/:name" element={<PortalClaim />} />

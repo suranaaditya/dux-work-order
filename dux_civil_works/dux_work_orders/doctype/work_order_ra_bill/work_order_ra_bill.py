@@ -662,16 +662,36 @@ def get_initial_bill_entries(work_order_contract, existing_entries=None):
 
 	bill.populate_bill_entries_from_scope_map()
 
-	return [{
-		"item_key": be.item_key,
-		"item_no": be.item_no,
-		"summary_head": be.summary_head,
-		"description": be.description,
-		"uom": be.uom,
-		"total_sanctioned_qty": float(be.total_sanctioned_qty or 0),
-		"cumulative_qty": float(be.cumulative_qty or 0),
-		"remarks": be.remarks,
-	} for be in (bill.bill_entries or [])]
+	# Rates come from the scope map so the caller can price the claim as it is
+	# typed. An item billed across several scopes (original + variations) can
+	# carry different rates, so flag that rather than implying one rate.
+	scopes_by_key = {}
+	for item in (build_scope_map(work_order_contract) or []):
+		scopes_by_key[item["item_key"]] = item.get("scopes") or []
+
+	def _rate_info(item_key):
+		scopes = scopes_by_key.get(item_key) or []
+		rates = [float(s.get("rate") or 0) for s in scopes]
+		if not rates:
+			return 0.0, False
+		return rates[0], len(set(rates)) > 1
+
+	out = []
+	for be in (bill.bill_entries or []):
+		rate, varies = _rate_info(be.item_key)
+		out.append({
+			"item_key": be.item_key,
+			"item_no": be.item_no,
+			"summary_head": be.summary_head,
+			"description": be.description,
+			"uom": be.uom,
+			"total_sanctioned_qty": float(be.total_sanctioned_qty or 0),
+			"cumulative_qty": float(be.cumulative_qty or 0),
+			"remarks": be.remarks,
+			"rate": rate,
+			"rate_varies": varies,
+		})
+	return out
 
 
 # ============================================================
