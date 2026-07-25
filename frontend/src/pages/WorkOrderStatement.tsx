@@ -116,8 +116,8 @@ export default function WorkOrderStatement() {
     fields: ["parent", "wo_ra_bill"],
     filters: [["wo_ra_bill", "in", billNames], ["docstatus", "=", 1]],
     limit: 0,
-    parent: "Purchase Invoice",
-  }, billNames.length ? `stmt-pilinks-${billNames.join(",")}` : null);
+    parent: "Purchase Invoice", // required for child-doctype listing; not in the SDK's type
+  } as any, billNames.length ? `stmt-pilinks-${billNames.join(",")}` : null);
 
   const piNames = Array.from(new Set((piLinks.data || []).map((r: any) => r.parent).filter(Boolean)));
 

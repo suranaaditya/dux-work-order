@@ -26,6 +26,9 @@ export interface PaymentEntryRow {
 /** Payment Entry Reference rows pointing at the given invoice names. */
 export function usePaymentRefs(invoiceNames: string[]) {
   const key = invoiceNames.slice().sort().join(",");
+  // `parent` is required by Frappe's REST API when listing a child doctype.
+  // frappe-react-sdk forwards it, but its GetDocListArgs type omits it — the
+  // cast keeps the runtime behaviour while satisfying tsc.
   return useFrappeGetDocList<PaymentRef>("Payment Entry Reference", {
     fields: ["name", "parent", "reference_name", "allocated_amount"],
     filters: [
@@ -35,7 +38,7 @@ export function usePaymentRefs(invoiceNames: string[]) {
     ],
     limit: 0,
     parent: "Payment Entry",
-  }, invoiceNames.length ? `pay-refs-${key}` : null);
+  } as any, invoiceNames.length ? `pay-refs-${key}` : null);
 }
 
 /** The Payment Entry headers for the given payment names. */
