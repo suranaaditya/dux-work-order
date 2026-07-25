@@ -13,7 +13,7 @@ import { useFrappeGetDoc, useFrappeGetDocList } from "frappe-react-sdk";
 import { Card, Chip, ErrorNote, Loading, Money, Num, PageHead, SectionTitle } from "../components/ui";
 import { Icon } from "../components/icons";
 import { fmtDate, inr, num, pct } from "../lib/format";
-import { usePaymentsForInvoices } from "../components/payments";
+import { useChildTable, usePaymentsForInvoices } from "../components/payments";
 import { isAddition, type WorkOrderAdvanceRegister, type WorkOrderContract, type WorkOrderRABill } from "../lib/types";
 
 const money = (v?: number) => Number(v || 0);
@@ -112,12 +112,14 @@ export default function WorkOrderStatement() {
   const billNames = (bills.data || []).map((b) => b.name);
 
   // PI lines carry wo_ra_bill -> map invoices back to their RA bill.
-  const piLinks = useFrappeGetDocList<any>("Purchase Invoice Item", {
-    fields: ["parent", "wo_ra_bill"],
-    filters: [["wo_ra_bill", "in", billNames], ["docstatus", "=", 1]],
-    limit: 0,
-    parent: "Purchase Invoice", // required for child-doctype listing; not in the SDK's type
-  } as any, billNames.length ? `stmt-pilinks-${billNames.join(",")}` : null);
+  // Child-doctype listing needs `parent` in the query string (see payments.tsx).
+  const piLinks = useChildTable<any>(
+    "Purchase Invoice Item",
+    "Purchase Invoice",
+    ["name", "parent", "wo_ra_bill"],
+    [["wo_ra_bill", "in", billNames], ["docstatus", "=", 1]],
+    billNames.length > 0,
+  );
 
   const piNames = Array.from(new Set((piLinks.data || []).map((r: any) => r.parent).filter(Boolean)));
 

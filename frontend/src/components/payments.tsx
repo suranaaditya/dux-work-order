@@ -1,11 +1,69 @@
-/* Payment lookup shared by InvoiceDetail and the Work Order Statement.
+/* Child-table reads + the payment lookup shared by InvoiceDetail and the
+ * Work Order Statement.
  *
  * Payment Entry -> Purchase Invoice linkage lives in the `Payment Entry
- * Reference` child table. Frappe's /api/resource exposes child doctypes
- * directly as long as `parent` is passed, so this stays frontend-only —
- * no new backend endpoint, no restart.
+ * Reference` child table. Listing a CHILD doctype through Frappe's REST API
+ * requires a `parent=<Parent DocType>` query param — without it the server
+ * returns rows containing only `name` and silently drops every other
+ * requested field. frappe-react-sdk does not forward `parent`, so these
+ * reads go through fetch directly (same-origin, cookie auth — the pattern
+ * RecordInvoice already uses for tax templates).
+ *
+ * Stays frontend-only: no new backend endpoint, no server restart.
  */
-import { useFrappeGetDocList } from "frappe-react-sdk";
+import { useEffect, useState } from "react";
+
+/** List rows of a child doctype (requires its parent doctype). */
+export function useChildTable<T = any>(
+  doctype: string,
+  parent: string,
+  fields: string[],
+  filters: any[],
+  enabled = true,
+) {
+  const [data, setData] = useState<T[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<any>(null);
+  const key = JSON.stringify([doctype, parent, fields, filters, enabled]);
+
+  useEffect(() => {
+    if (!enabled) {
+      setData([]);
+      setIsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setIsLoading(true);
+    setError(null);
+    const qs = new URLSearchParams({
+      fields: JSON.stringify(fields),
+      filters: JSON.stringify(filters),
+      parent,
+      limit_page_length: "0",
+    });
+    fetch(`/api/resource/${encodeURIComponent(doctype)}?${qs.toString()}`, {
+      headers: { Accept: "application/json" },
+      credentials: "include",
+    })
+      .then((r) => r.json())
+      .then((j) => {
+        if (cancelled) return;
+        setData(j?.data || []);
+        setIsLoading(false);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setError(e);
+        setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  return { data, isLoading, error };
+}
 
 export interface PaymentRef {
   name: string;
@@ -23,35 +81,6 @@ export interface PaymentEntryRow {
   docstatus?: 0 | 1 | 2;
 }
 
-/** Payment Entry Reference rows pointing at the given invoice names. */
-export function usePaymentRefs(invoiceNames: string[]) {
-  const key = invoiceNames.slice().sort().join(",");
-  // `parent` is required by Frappe's REST API when listing a child doctype.
-  // frappe-react-sdk forwards it, but its GetDocListArgs type omits it — the
-  // cast keeps the runtime behaviour while satisfying tsc.
-  return useFrappeGetDocList<PaymentRef>("Payment Entry Reference", {
-    fields: ["name", "parent", "reference_name", "allocated_amount"],
-    filters: [
-      ["reference_doctype", "=", "Purchase Invoice"],
-      ["reference_name", "in", invoiceNames],
-      ["docstatus", "=", 1],
-    ],
-    limit: 0,
-    parent: "Payment Entry",
-  } as any, invoiceNames.length ? `pay-refs-${key}` : null);
-}
-
-/** The Payment Entry headers for the given payment names. */
-export function usePaymentEntries(paymentNames: string[]) {
-  const key = paymentNames.slice().sort().join(",");
-  return useFrappeGetDocList<PaymentEntryRow>("Payment Entry", {
-    fields: ["name", "posting_date", "mode_of_payment", "reference_no", "paid_amount", "docstatus"],
-    filters: [["name", "in", paymentNames]],
-    limit: 0,
-    orderBy: { field: "posting_date", order: "asc" },
-  }, paymentNames.length ? `pay-entries-${key}` : null);
-}
-
 export interface ResolvedPayment {
   payment: string;
   invoice: string;
@@ -61,13 +90,58 @@ export interface ResolvedPayment {
   reference_no?: string;
 }
 
-/** Payments allocated to a set of invoices, joined and date-sorted. */
+/** Payments allocated to a set of invoices, joined to their Payment Entry. */
 export function usePaymentsForInvoices(invoiceNames: string[]) {
-  const refs = usePaymentRefs(invoiceNames);
-  const payNames = Array.from(new Set((refs.data || []).map((r) => r.parent)));
-  const entries = usePaymentEntries(payNames);
+  const refs = useChildTable<PaymentRef>(
+    "Payment Entry Reference",
+    "Payment Entry",
+    ["name", "parent", "reference_name", "allocated_amount"],
+    [
+      ["reference_doctype", "=", "Purchase Invoice"],
+      ["reference_name", "in", invoiceNames],
+      ["docstatus", "=", 1],
+    ],
+    invoiceNames.length > 0,
+  );
 
-  const byName = new Map((entries.data || []).map((e) => [e.name, e]));
+  const payNames = Array.from(new Set((refs.data || []).map((r) => r.parent).filter(Boolean)));
+  const [entries, setEntries] = useState<PaymentEntryRow[]>([]);
+  const [loadingEntries, setLoadingEntries] = useState(false);
+  const payKey = payNames.slice().sort().join(",");
+
+  useEffect(() => {
+    if (!payNames.length) {
+      setEntries([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingEntries(true);
+    const qs = new URLSearchParams({
+      fields: JSON.stringify(["name", "posting_date", "mode_of_payment", "reference_no", "paid_amount", "docstatus"]),
+      filters: JSON.stringify([["name", "in", payNames]]),
+      limit_page_length: "0",
+    });
+    fetch(`/api/resource/Payment%20Entry?${qs.toString()}`, {
+      headers: { Accept: "application/json" },
+      credentials: "include",
+    })
+      .then((r) => r.json())
+      .then((j) => {
+        if (cancelled) return;
+        setEntries(j?.data || []);
+        setLoadingEntries(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setLoadingEntries(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payKey]);
+
+  const byName = new Map(entries.map((e) => [e.name, e]));
   const rows: ResolvedPayment[] = (refs.data || []).map((r) => {
     const pe = byName.get(r.parent);
     return {
@@ -83,8 +157,8 @@ export function usePaymentsForInvoices(invoiceNames: string[]) {
 
   return {
     rows,
-    isLoading: refs.isLoading || entries.isLoading,
-    error: refs.error || entries.error,
+    isLoading: refs.isLoading || loadingEntries,
+    error: refs.error,
     totalPaid: rows.reduce((s, r) => s + r.allocated, 0),
   };
 }
