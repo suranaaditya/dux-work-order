@@ -207,7 +207,8 @@ export type ReviewState =
   | "Pending Review"
   | "Returned for Revision"
   | "Approved"
-  | "Rejected";
+  | "Rejected"
+  | "Withdrawn";
 
 export interface WorkOrderRABillEntry {
   name: string;
@@ -223,7 +224,7 @@ export interface WorkOrderRABillEntry {
 }
 
 export interface ReviewAction {
-  action: "submit_for_review" | "approve" | "return_for_revision" | "reject" | "reopen";
+  action: "submit_for_review" | "approve" | "return_for_revision" | "reject" | "reopen" | "withdraw";
   label: string;
   next_state: ReviewState;
 }

@@ -22,6 +22,7 @@ import type { WorkOrderRABill } from "../lib/types";
 
 const WO_METHOD = "dux_civil_works.dux_work_orders.doctype.work_order_ra_bill.work_order_ra_bill.get_portal_work_orders";
 const SEED_METHOD = "dux_civil_works.dux_work_orders.doctype.work_order_ra_bill.work_order_ra_bill.get_initial_bill_entries";
+const OPEN_CLAIM_METHOD = "dux_civil_works.dux_work_orders.doctype.work_order_ra_bill.work_order_ra_bill.get_open_claim";
 const APPLY_METHOD = "dux_civil_works.dux_work_orders.doctype.work_order_ra_bill.work_order_ra_bill.apply_review_action";
 const UPLOAD_METHOD = "/api/method/dux_civil_works.dux_work_orders.doctype.work_order_ra_bill.work_order_ra_bill.upload_supplier_invoice";
 
@@ -38,6 +39,7 @@ function claimStatus(b: Partial<WorkOrderRABill>): { label: string; tone: string
     case "Returned for Revision": return { label: "Returned to you", tone: "var(--err)" };
     case "Approved": return { label: "Approved", tone: "var(--ok)" };
     case "Rejected": return { label: "Rejected", tone: "var(--err)" };
+    case "Withdrawn": return { label: "Withdrawn by you", tone: "var(--text-muted)" };
     default: return { label: String(s), tone: "var(--text-muted)" };
   }
 }
@@ -387,6 +389,13 @@ function PortalNewClaim() {
   const [entries, setEntries] = useState<any[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const seed = useFrappePostCall(SEED_METHOD);
+  // Running-account claims are sequential; the server refuses a second open
+  // claim on the same work order, so surface that BEFORE they fill one in.
+  const openClaim = useFrappeGetCall<{ message: any }>(
+    OPEN_CLAIM_METHOD, { work_order: wo }, wo ? `open-claim-${wo}` : undefined,
+  );
+  const blocking = openClaim.data?.message || null;
+  const withdraw = useFrappePostCall(APPLY_METHOD);
   const { createDoc, loading } = useFrappeCreateDoc();
   const apply = useFrappePostCall(APPLY_METHOD);
 
@@ -462,7 +471,44 @@ function PortalNewClaim() {
         </div>
       </Card>
 
-      {wo && (
+      {wo && blocking && (
+        <Card style={{ padding: 18, marginBottom: 18, borderLeft: "3px solid #c96a10" }}>
+          <div style={{ fontWeight: 700, fontSize: 13.5, color: "#c96a10" }}>
+            You already have a claim open on this work order
+          </div>
+          <div style={{ fontSize: 12.5, color: "var(--text-secondary)", marginTop: 5, maxWidth: "62ch" }}>
+            <Link to={`/portal/claims/${encodeURIComponent(blocking.name)}`} style={{ color: "#c96a10", fontWeight: 600 }}>
+              {blocking.name}
+            </Link>{" "}
+            is <b>{(claimStatus({ review_state: blocking.review_state, docstatus: 0 }).label || "").toLowerCase()}</b>.
+            Quantities on a claim are cumulative — the total done to date — so two open claims
+            would count the same work twice. Wait for this one to be decided, or withdraw it and
+            start again.
+          </div>
+          <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
+            <Link to={`/portal/claims/${encodeURIComponent(blocking.name)}`} style={{
+              border: "1px solid var(--border-strong)", padding: "8px 14px", borderRadius: 8,
+              fontSize: 12.5, fontWeight: 600, color: "var(--text-primary)",
+            }}>Open that claim</Link>
+            <button
+              onClick={async () => {
+                if (!window.confirm(`Withdraw ${blocking.name}? You can then raise a fresh claim on this work order.`)) return;
+                try {
+                  await withdraw.call({ ra_bill: blocking.name, action: "withdraw" });
+                  openClaim.mutate();
+                } catch (e: any) { setErr(serverMessage(e)); }
+              }}
+              disabled={withdraw.loading}
+              style={{
+                background: "#c96a10", color: "#fff", border: "none", borderRadius: 8,
+                padding: "9px 15px", fontSize: 12.5, fontWeight: 650, cursor: "pointer",
+              }}
+            >{withdraw.loading ? "Withdrawing…" : "Withdraw it and start a new claim"}</button>
+          </div>
+        </Card>
+      )}
+
+      {wo && !blocking && (
         <Card style={{ padding: "18px 0 6px", marginBottom: 18 }}>
           <div style={{ padding: "0 18px" }}>
             <SectionTitle right={<span style={{ fontSize: 12, color: "var(--text-muted)" }}>{seed.loading ? "loading…" : `${entries.length} items`}</span>}>
@@ -525,7 +571,7 @@ function PortalNewClaim() {
         </Card>
       )}
 
-      {wo && entries.length > 0 && (
+      {wo && !blocking && entries.length > 0 && (
         <Card style={{ padding: "14px 18px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 10 }}>
           <span style={{ fontSize: 13, fontWeight: 600 }}>Value of this claim</span>
           <span className="mono" style={{ fontSize: 19, fontWeight: 700, color: "#c96a10" }}>
@@ -551,8 +597,8 @@ function PortalNewClaim() {
 
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, alignItems: "center" }}>
         {wo && !anything && overLines.length === 0 && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Increase at least one item above what's already billed.</span>}
-        <button onClick={send} disabled={!wo || !anything || overLines.length > 0 || loading || apply.loading} style={{
-          background: (!wo || !anything || overLines.length > 0 || loading || apply.loading) ? "var(--border-strong)" : "#c96a10",
+        <button onClick={send} disabled={!wo || !!blocking || !anything || overLines.length > 0 || loading || apply.loading} style={{
+          background: (!wo || !!blocking || !anything || overLines.length > 0 || loading || apply.loading) ? "var(--border-strong)" : "#c96a10",
           color: "#fff", border: "none", borderRadius: 9, padding: "10px 18px",
           fontSize: 13.5, fontWeight: 650, cursor: (!wo || !anything || overLines.length > 0) ? "not-allowed" : "pointer",
         }}>{loading || apply.loading ? "Sending…" : "Send claim to client"}</button>
@@ -578,6 +624,7 @@ function PortalClaim() {
   const certified = n(b.net_payable);
   const adjusted = claimed > 0 && Math.abs(certified - claimed) > 0.01;
   const canResend = b.review_state === "Returned for Revision";
+  const canWithdraw = b.docstatus === 0 && ["Draft", "Pending Review", "Returned for Revision"].includes(b.review_state || "Draft");
 
   async function resend() {
     setErr(null);
@@ -595,12 +642,32 @@ function PortalClaim() {
           {b.name}<span style={{ color: st.tone, fontSize: 13, fontWeight: 650 }}>{st.label}</span>
         </span>}
         sub={<>Against work order <span className="mono">{b.civil_work_order}</span> · {fmtDate(b.bill_date)}</>}
-        right={canResend ? (
-          <button onClick={resend} disabled={apply.loading} style={{
-            background: "#c96a10", color: "#fff", border: "none", borderRadius: 9,
-            padding: "9px 15px", fontSize: 13, fontWeight: 650, cursor: "pointer",
-          }}>{apply.loading ? "Sending…" : "Send again"}</button>
-        ) : undefined}
+        right={
+          <div style={{ display: "flex", gap: 9, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            {canWithdraw && (
+              <button
+                onClick={async () => {
+                  if (!window.confirm(`Withdraw ${b!.name}? It will no longer be with the client, and you can raise a fresh claim.`)) return;
+                  setErr(null);
+                  try { await apply.call({ ra_bill: name, action: "withdraw" }); mutate(); }
+                  catch (e: any) { setErr(serverMessage(e)); }
+                }}
+                disabled={apply.loading}
+                style={{
+                  background: "var(--bg-surface)", color: "var(--text-primary)", borderRadius: 9,
+                  border: "1px solid var(--border-strong)", padding: "9px 14px", fontSize: 13,
+                  fontWeight: 600, cursor: "pointer",
+                }}
+              >Withdraw</button>
+            )}
+            {canResend && (
+              <button onClick={resend} disabled={apply.loading} style={{
+                background: "#c96a10", color: "#fff", border: "none", borderRadius: 9,
+                padding: "9px 15px", fontSize: 13, fontWeight: 650, cursor: "pointer",
+              }}>{apply.loading ? "Sending…" : "Send again"}</button>
+            )}
+          </div>
+        }
       />
 
       {b.docstatus === 1 && <InvoiceUpload bill={b} onDone={() => mutate()} />}

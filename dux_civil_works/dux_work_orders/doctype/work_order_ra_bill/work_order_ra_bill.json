@@ -288,7 +288,7 @@
    "in_standard_filter": 1,
    "label": "Review State",
    "no_copy": 1,
-   "options": "\nDraft\nPending Review\nReturned for Revision\nApproved\nRejected",
+   "options": "\nDraft\nPending Review\nReturned for Revision\nApproved\nRejected\nWithdrawn",
    "read_only": 1
   },
   {
@@ -341,7 +341,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-07-25 18:40:30.493229",
+ "modified": "2026-07-25 20:11:05.683642",
  "modified_by": "Administrator",
  "module": "Dux Work Orders",
  "name": "Work Order RA Bill",

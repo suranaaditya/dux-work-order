@@ -18,7 +18,48 @@ class WorkOrderRABill(Document):
 	# Lifecycle hooks
 	# ============================================================
 
+	def _assert_single_open_claim(self):
+		"""One live claim per work order. Running-account bills are sequential.
+
+		`_get_previous_cumulative_qty` only counts APPROVED bills, so a second
+		claim opened while the first is still in review is seeded as though the
+		first does not exist. That double-counts the same work, and when the
+		first is finally approved the second either collapses to nothing or
+		trips the monotonic guard and can never be approved at all. Refuse the
+		situation outright instead.
+		"""
+		if not self.civil_work_order:
+			return
+		others = frappe.get_all(
+			"Work Order RA Bill",
+			filters={
+				"civil_work_order": self.civil_work_order,
+				"docstatus": 0,
+				"name": ["!=", self.name or ""],
+			},
+			fields=["name", "review_state"],
+		)
+		open_ones = [
+			o for o in others
+			if (o.get("review_state") or "Draft") not in CLOSED_REVIEW_STATES
+		]
+		if open_ones:
+			other = open_ones[0]
+			frappe.throw(
+				_(
+					"{0} already has a claim in progress ({1}, {2}). "
+					"Finish or withdraw it before raising another — quantities are "
+					"cumulative, so two open claims would double-count the same work."
+				).format(
+					frappe.bold(self.civil_work_order),
+					frappe.bold(other["name"]),
+					other.get("review_state") or _("Draft"),
+				),
+				title=_("A claim is already open"),
+			)
+
 	def before_insert(self):
+		self._assert_single_open_claim()
 		self.assign_bill_number()
 		self.populate_bill_entries_from_scope_map()
 		# Claim review is opt-in per company. A company that has not enabled it
@@ -727,16 +768,22 @@ def get_initial_bill_entries(work_order_contract, existing_entries=None):
 
 #: state -> {action: next_state}
 REVIEW_TRANSITIONS = {
-	"Draft": {"submit_for_review": "Pending Review"},
+	"Draft": {"submit_for_review": "Pending Review", "withdraw": "Withdrawn"},
 	"Pending Review": {
 		"approve": "Approved",
 		"return_for_revision": "Returned for Revision",
 		"reject": "Rejected",
+		"withdraw": "Withdrawn",
 	},
-	"Returned for Revision": {"submit_for_review": "Pending Review"},
+	"Returned for Revision": {"submit_for_review": "Pending Review", "withdraw": "Withdrawn"},
 	"Rejected": {"reopen": "Draft"},
+	"Withdrawn": {"reopen": "Draft"},
 	"Approved": {},
 }
+
+#: A claim in one of these states is finished with — it no longer occupies the
+#: work order and does not block the next claim.
+CLOSED_REVIEW_STATES = ("Rejected", "Withdrawn")
 
 #: action -> roles that may perform it. System Manager may always act.
 REVIEW_ACTION_ROLES = {
@@ -745,6 +792,8 @@ REVIEW_ACTION_ROLES = {
 	"return_for_revision": ("WO L2 Approver", "WO Verifier", "Accounts Manager"),
 	"reject": ("WO L2 Approver", "Accounts Manager"),
 	"reopen": ("WO Creator", "Accounts User", "Accounts Manager"),
+	# The contractor may take back their own claim; staff may too.
+	"withdraw": ("WO Creator", "Accounts User", "Accounts Manager", "Contractor Portal"),
 }
 
 REVIEW_ACTION_LABELS = {
@@ -753,6 +802,7 @@ REVIEW_ACTION_LABELS = {
 	"return_for_revision": "Return for revision",
 	"reject": "Reject",
 	"reopen": "Re-open",
+	"withdraw": "Withdraw",
 }
 
 
@@ -1180,3 +1230,18 @@ def get_supplier_invoice(ra_bill):
 		"review_state": doc.get("review_state"),
 		"docstatus": doc.docstatus,
 	}
+
+
+@frappe.whitelist()
+def get_open_claim(work_order):
+	"""The live claim on this work order, if any. Read-scoped."""
+	rows = frappe.get_list(
+		"Work Order RA Bill",
+		filters={"civil_work_order": work_order, "docstatus": 0},
+		fields=["name", "review_state", "bill_date", "net_payable"],
+		limit_page_length=0,
+	)
+	for r in rows:
+		if (r.get("review_state") or "Draft") not in CLOSED_REVIEW_STATES:
+			return r
+	return None
