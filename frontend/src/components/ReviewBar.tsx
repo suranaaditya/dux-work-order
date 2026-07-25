@@ -30,12 +30,12 @@ const NEEDS_REASON: Record<string, string> = {
   reject: "Reason for rejecting this claim",
 };
 
-const TONE: Record<string, "primary" | "danger" | "default"> = {
+const TONE: Record<string, "primary" | "danger" | "ghost"> = {
   approve: "primary",
   submit_for_review: "primary",
   reject: "danger",
-  return_for_revision: "default",
-  reopen: "default",
+  return_for_revision: "ghost",
+  reopen: "ghost",
 };
 
 export function ReviewBar({
@@ -76,7 +76,7 @@ export function ReviewBar({
         {actions.map((a) => (
           <Btn
             key={a.action}
-            variant={TONE[a.action] === "primary" ? "primary" : "default"}
+            variant={TONE[a.action] === "primary" ? "primary" : "ghost"}
             onClick={() => (NEEDS_REASON[a.action] ? setPending(a) : run(a))}
             disabled={apply.loading}
             style={TONE[a.action] === "danger" ? { color: "var(--err)", borderColor: "var(--err)" } : undefined}
