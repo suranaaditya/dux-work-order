@@ -31,6 +31,7 @@ Design rules (deliberate, please preserve):
 """
 
 import frappe
+from frappe import _
 
 #: Role that marks a login as an external contractor. Internal staff must
 #: never hold this role — holding it is what triggers scoping.
