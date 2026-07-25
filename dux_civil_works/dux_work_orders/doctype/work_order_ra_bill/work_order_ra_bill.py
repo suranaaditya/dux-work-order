@@ -43,6 +43,11 @@ class WorkOrderRABill(Document):
 		self.suggest_deductions()
 		self.compute_totals_and_net_payable()
 		self.set_billing_status()
+		# Fail fast. This also runs in before_submit (belt and braces), but a
+		# claim that breaches the sanctioned ceiling can NEVER be approved, so
+		# refuse to SAVE it rather than letting someone build a claim that only
+		# explodes days later when the reviewer tries to approve it.
+		self.enforce_deviation_limits()
 
 	def on_submit(self):
 		self.post_recoveries_to_register()
@@ -676,6 +681,16 @@ def get_initial_bill_entries(work_order_contract, existing_entries=None):
 			return 0.0, False
 		return rates[0], len(set(rates)) > 1
 
+	def _max_claimable(item_key):
+		"""Highest cumulative qty that could ever be approved for this item:
+		each scope's sanctioned cap plus its own permitted deviation."""
+		total = 0.0
+		for sc in (scopes_by_key.get(item_key) or []):
+			cap = float(sc.get("cap") or 0)
+			dev = float(sc.get("deviation_limit_pct") or 0)
+			total += cap * (1.0 + dev / 100.0)
+		return round(total, 6)
+
 	out = []
 	for be in (bill.bill_entries or []):
 		rate, varies = _rate_info(be.item_key)
@@ -690,6 +705,7 @@ def get_initial_bill_entries(work_order_contract, existing_entries=None):
 			"remarks": be.remarks,
 			"rate": rate,
 			"rate_varies": varies,
+			"max_claimable": _max_claimable(be.item_key),
 		})
 	return out
 

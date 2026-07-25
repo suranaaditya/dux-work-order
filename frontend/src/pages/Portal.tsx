@@ -160,7 +160,11 @@ function PortalHome() {
               </div>
               <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", fontSize: 12, color: "var(--text-muted)" }}>
                 <span>{pct(prog)} certified · {w.bills} claim{w.bills === 1 ? "" : "s"} approved</span>
-                {w.open_claims > 0 && <Chip label={`${w.open_claims} in progress`} />}
+                {w.open_claims > 0 && (
+                  <Link to="/portal/claims" style={{ textDecoration: "none" }}>
+                    <Chip label={`${w.open_claims} in progress`} />
+                  </Link>
+                )}
                 <Link to={`/portal/work-orders/${encodeURIComponent(w.name)}`} style={{
                   marginLeft: "auto", border: "1px solid var(--border-strong)", padding: "6px 12px",
                   borderRadius: 8, fontSize: 12.5, fontWeight: 600, color: "var(--text-primary)",
@@ -399,6 +403,11 @@ function PortalNewClaim() {
 
   const thisClaim = (e: any) => Math.max(0, n(e.cumulative_qty) - n(e._prev));
   const anything = entries.some((e) => thisClaim(e) > 0);
+  // The server refuses to save a claim above the sanctioned ceiling, so stop
+  // it here too rather than letting them fill in a whole claim and be rejected.
+  const ceiling = (e: any) => (n(e.max_claimable) || n(e.total_sanctioned_qty));
+  const over = (e: any) => n(e.cumulative_qty) > ceiling(e) + 1e-9;
+  const overLines = entries.filter(over);
 
   async function send() {
     setErr(null);
@@ -483,10 +492,16 @@ function PortalNewClaim() {
                         onChange={(ev) => setEntries((es) => es.map((x, j) => j === i ? { ...x, cumulative_qty: n(ev.target.value) } : x))}
                         style={{
                           width: 110, height: 32, padding: "0 9px", textAlign: "right", borderRadius: 7,
-                          border: `1px solid ${thisClaim(e) > 0 ? "#c96a10" : "var(--border-strong)"}`,
-                          background: thisClaim(e) > 0 ? "rgba(201,106,16,.08)" : "var(--bg-surface)",
-                          color: "var(--text-primary)", fontSize: 12.5,
+                          border: `1px solid ${over(e) ? "var(--err)" : thisClaim(e) > 0 ? "#c96a10" : "var(--border-strong)"}`,
+                          background: over(e) ? "var(--err-bg)" : thisClaim(e) > 0 ? "rgba(201,106,16,.08)" : "var(--bg-surface)",
+                          color: over(e) ? "var(--err)" : "var(--text-primary)", fontSize: 12.5,
+                          fontWeight: over(e) ? 700 : 400,
                         }} />
+                      {over(e) && (
+                        <div style={{ fontSize: 10.5, color: "var(--err)", marginTop: 3, whiteSpace: "nowrap" }}>
+                          max {fq(ceiling(e))}
+                        </div>
+                      )}
                     </td>
                     <td style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-subtle)", textAlign: "right" }}>
                       <span className="mono" style={{ fontWeight: 700, color: thisClaim(e) > 0 ? "#c96a10" : "var(--text-faint)" }}>{fq(thisClaim(e))}</span>
@@ -521,12 +536,24 @@ function PortalNewClaim() {
         </Card>
       )}
 
+      {overLines.length > 0 && (
+        <Card style={{ padding: 15, marginBottom: 16, borderLeft: "3px solid var(--err)" }}>
+          <div style={{ color: "var(--err)", fontWeight: 650, fontSize: 13 }}>
+            {overLines.length} item{overLines.length === 1 ? "" : "s"} exceed the sanctioned quantity
+          </div>
+          <div style={{ fontSize: 12.5, color: "var(--text-secondary)", marginTop: 4 }}>
+            You cannot claim more than the work order allows. Reduce the highlighted lines to their
+            maximum, or ask the client to issue a variation first.
+          </div>
+        </Card>
+      )}
+
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, alignItems: "center" }}>
-        {wo && !anything && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Increase at least one item above what's already billed.</span>}
-        <button onClick={send} disabled={!wo || !anything || loading || apply.loading} style={{
-          background: (!wo || !anything || loading || apply.loading) ? "var(--border-strong)" : "#c96a10",
+        {wo && !anything && overLines.length === 0 && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Increase at least one item above what's already billed.</span>}
+        <button onClick={send} disabled={!wo || !anything || overLines.length > 0 || loading || apply.loading} style={{
+          background: (!wo || !anything || overLines.length > 0 || loading || apply.loading) ? "var(--border-strong)" : "#c96a10",
           color: "#fff", border: "none", borderRadius: 9, padding: "10px 18px",
-          fontSize: 13.5, fontWeight: 650, cursor: (!wo || !anything) ? "not-allowed" : "pointer",
+          fontSize: 13.5, fontWeight: 650, cursor: (!wo || !anything || overLines.length > 0) ? "not-allowed" : "pointer",
         }}>{loading || apply.loading ? "Sending…" : "Send claim to client"}</button>
       </div>
     </>
