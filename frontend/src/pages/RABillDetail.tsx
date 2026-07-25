@@ -250,6 +250,26 @@ export default function RABillDetail() {
         </div>
       </Card>
 
+      {/* The contractor's own tax invoice, if they have sent one */}
+      {(b as any).supplier_invoice_file && (
+        <Card style={{ padding: 16, marginBottom: 18, borderLeft: "3px solid var(--ok)" }}>
+          <SectionTitle>Contractor's tax invoice</SectionTitle>
+          <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "baseline", fontSize: 13 }}>
+            <KV label="Invoice no">{(b as any).supplier_invoice_no || "—"}</KV>
+            <KV label="Invoice date"><span className="mono">{fmtDate((b as any).supplier_invoice_date)}</span></KV>
+            <KV label="Amount stated"><span className="mono">{num((b as any).supplier_invoice_amount)}</span></KV>
+            <KV label="Net payable"><span className="mono">{num(b.net_payable)}</span></KV>
+            <a href={(b as any).supplier_invoice_file} target="_blank" rel="noreferrer"
+               style={{ color: "var(--iris)", fontWeight: 600, marginLeft: "auto" }}>Open document</a>
+          </div>
+          {Math.abs(Number((b as any).supplier_invoice_amount || 0) - Number(b.net_payable || 0)) > 1 && (
+            <div style={{ fontSize: 12, color: "var(--err)", marginTop: 8 }}>
+              The invoice amount differs from the approved net payable — check before recording it.
+            </div>
+          )}
+        </Card>
+      )}
+
       {/* Grid + computation */}
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 320px", gap: 18, alignItems: "start" }}>
         <Card style={{ padding: "18px 0 6px" }}>

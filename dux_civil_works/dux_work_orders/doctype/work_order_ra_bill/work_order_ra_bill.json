@@ -41,7 +41,11 @@
   "cb_invoicing_1",
   "billing_status",
   "review_state",
-  "claimed_net_payable"
+  "claimed_net_payable",
+  "supplier_invoice_no",
+  "supplier_invoice_date",
+  "supplier_invoice_amount",
+  "supplier_invoice_file"
  ],
  "fields": [
   {
@@ -296,13 +300,48 @@
    "options": "company_currency",
    "print_hide": 1,
    "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "description": "The contractor's own tax invoice number, uploaded by them against this approved claim.",
+   "fieldname": "supplier_invoice_no",
+   "fieldtype": "Data",
+   "label": "Contractor Invoice No",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "supplier_invoice_date",
+   "fieldtype": "Date",
+   "label": "Contractor Invoice Date",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "description": "As stated on the contractor's invoice. Compared against net payable, never used to compute it.",
+   "fieldname": "supplier_invoice_amount",
+   "fieldtype": "Currency",
+   "label": "Contractor Invoice Amount",
+   "no_copy": 1,
+   "options": "company_currency",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "supplier_invoice_file",
+   "fieldtype": "Attach",
+   "label": "Contractor Invoice File",
+   "no_copy": 1,
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-07-25 16:39:02.740815",
+ "modified": "2026-07-25 18:40:30.493229",
  "modified_by": "Administrator",
  "module": "Dux Work Orders",
  "name": "Work Order RA Bill",
@@ -324,10 +363,12 @@
    "write": 1
   },
   {
+   "create": 1,
    "print": 1,
    "read": 1,
    "report": 1,
-   "role": "Contractor Portal"
+   "role": "Contractor Portal",
+   "write": 1
   }
  ],
  "row_format": "Dynamic",

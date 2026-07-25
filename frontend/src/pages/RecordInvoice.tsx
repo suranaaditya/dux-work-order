@@ -56,6 +56,7 @@ export default function RecordInvoice() {
 
   const [billNo, setBillNo] = useState("");
   const [billDate, setBillDate] = useState(todayISO());
+  const [prefilled, setPrefilled] = useState(false);
   const [gstTemplate, setGstTemplate] = useState("");
   const [applyTds, setApplyTds] = useState(false);
   const [tdsCategory, setTdsCategory] = useState("");
@@ -120,6 +121,19 @@ export default function RecordInvoice() {
     setGstTemplate(chosen || pick(/In-state/i) || opts[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gstTemplates.data, supplierDoc, companyDoc]);
+
+  // If the contractor uploaded their own tax invoice against this claim, take
+  // the number and date from it rather than making the accountant retype them.
+  useEffect(() => {
+    if (prefilled || !bill) return;
+    const anyBill = bill as any;
+    if (anyBill.supplier_invoice_no || anyBill.supplier_invoice_date) {
+      if (anyBill.supplier_invoice_no) setBillNo(anyBill.supplier_invoice_no);
+      if (anyBill.supplier_invoice_date) setBillDate(anyBill.supplier_invoice_date);
+      setPrefilled(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bill]);
 
   // default the TDS category to whatever the supplier already has
   useEffect(() => {
@@ -202,10 +216,24 @@ export default function RecordInvoice() {
       </Link>
       <PageHead title="Record Invoice" sub={`Purchase Invoice against ${name} · ${bill.supplier}`} />
 
+      {(bill as any)?.supplier_invoice_file && (
+        <Card style={{ padding: 14, marginBottom: 16, borderLeft: "3px solid var(--ok)" }}>
+          <div style={{ display: "flex", gap: 16, alignItems: "baseline", flexWrap: "wrap", fontSize: 13 }}>
+            <span style={{ fontWeight: 650 }}>Contractor sent their tax invoice</span>
+            <span className="mono" style={{ color: "var(--text-secondary)" }}>
+              {(bill as any).supplier_invoice_no} · {(bill as any).supplier_invoice_date}
+            </span>
+            <a href={(bill as any).supplier_invoice_file} target="_blank" rel="noreferrer"
+               style={{ color: "var(--iris)", fontWeight: 600, marginLeft: "auto" }}>Open document</a>
+          </div>
+        </Card>
+      )}
+
       <Card style={{ padding: 20, marginBottom: 18 }}>
         <SectionTitle>Invoice details</SectionTitle>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 16 }}>
-          <Field label="Supplier invoice no" hint="The contractor's actual invoice number">
+          <Field label="Supplier invoice no"
+                 hint={(bill as any)?.supplier_invoice_file ? "Taken from the invoice the contractor uploaded" : "The contractor's actual invoice number"}>
             <TextInput value={billNo} onChange={setBillNo} placeholder="e.g. INV-2026-045" />
           </Field>
           <Field label="Invoice date" required>

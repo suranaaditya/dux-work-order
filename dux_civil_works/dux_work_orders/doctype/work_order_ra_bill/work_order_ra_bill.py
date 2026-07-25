@@ -1041,3 +1041,114 @@ def get_portal_work_orders():
 			{"civil_work_order": wo["name"], "docstatus": 0},
 		)
 	return wos
+
+
+# ============================================================
+# Contractor's tax invoice (Phase 5)
+# ============================================================
+# The contractor attaches THEIR invoice to an approved claim. They never
+# create an accounting document — staff still raise the Purchase Invoice.
+# This is a file plus three facts, nothing more.
+
+#: Deliberately narrow. An upload box is the most attacked thing we expose.
+ALLOWED_INVOICE_EXTENSIONS = (".pdf", ".jpg", ".jpeg", ".png")
+MAX_INVOICE_BYTES = 5 * 1024 * 1024
+
+
+def _claim_for_invoice_upload(ra_bill):
+	"""Load a claim the caller is allowed to attach an invoice to."""
+	from dux_civil_works.dux_work_orders.api.portal import (
+		get_portal_suppliers,
+		is_portal_user,
+	)
+
+	doc = frappe.get_doc("Work Order RA Bill", ra_bill)
+	doc.check_permission("read")
+
+	if is_portal_user() and doc.supplier not in get_portal_suppliers():
+		frappe.throw(_("Not your claim."), frappe.PermissionError)
+
+	if doc.docstatus != 1 or (doc.get("review_state") or "") not in ("", "Approved"):
+		frappe.throw(
+			_("An invoice can only be attached once the claim has been approved."),
+			frappe.PermissionError,
+		)
+	return doc
+
+
+@frappe.whitelist()
+def upload_supplier_invoice(ra_bill, invoice_no=None, invoice_date=None, invoice_amount=None):
+	"""Attach the contractor's own tax invoice to an approved claim.
+
+	Multipart: the file arrives in frappe.request.files["file"]. Stored
+	private and linked to the claim, so it inherits the claim's read
+	scoping — another contractor cannot fetch it.
+	"""
+	doc = _claim_for_invoice_upload(ra_bill)
+
+	files = getattr(frappe.request, "files", None) or {}
+	upload = files.get("file")
+	if not upload:
+		frappe.throw(_("No file was received."))
+
+	filename = (getattr(upload, "filename", "") or "").strip()
+	if not filename.lower().endswith(ALLOWED_INVOICE_EXTENSIONS):
+		frappe.throw(
+			_("Upload a PDF or an image ({0}).").format(", ".join(ALLOWED_INVOICE_EXTENSIONS))
+		)
+
+	content = upload.stream.read()
+	if not content:
+		frappe.throw(_("That file is empty."))
+	if len(content) > MAX_INVOICE_BYTES:
+		frappe.throw(_("That file is larger than 5 MB."))
+
+	# Let Frappe sanitise the stored name; never trust the client's path.
+	import os
+	safe_name = os.path.basename(filename)[-140:]
+
+	_file = frappe.get_doc({
+		"doctype": "File",
+		"file_name": safe_name,
+		"attached_to_doctype": "Work Order RA Bill",
+		"attached_to_name": doc.name,
+		"attached_to_field": "supplier_invoice_file",
+		"is_private": 1,
+		"content": content,
+	})
+	_file.insert(ignore_permissions=True)
+
+	doc.db_set("supplier_invoice_file", _file.file_url, update_modified=False)
+	if invoice_no:
+		doc.db_set("supplier_invoice_no", str(invoice_no)[:140], update_modified=False)
+	if invoice_date:
+		doc.db_set("supplier_invoice_date", invoice_date, update_modified=False)
+	if invoice_amount not in (None, ""):
+		doc.db_set("supplier_invoice_amount", flt(invoice_amount), update_modified=False)
+	frappe.db.commit()
+
+	doc.add_comment("Comment", text=_("Contractor uploaded tax invoice {0}").format(invoice_no or safe_name))
+
+	return {
+		"file_url": _file.file_url,
+		"file_name": safe_name,
+		"supplier_invoice_no": doc.get("supplier_invoice_no"),
+		"supplier_invoice_date": str(doc.get("supplier_invoice_date") or ""),
+		"supplier_invoice_amount": flt(doc.get("supplier_invoice_amount") or 0),
+	}
+
+
+@frappe.whitelist()
+def get_supplier_invoice(ra_bill):
+	"""What the contractor has attached, for both sides of the app."""
+	doc = frappe.get_doc("Work Order RA Bill", ra_bill)
+	doc.check_permission("read")
+	return {
+		"supplier_invoice_no": doc.get("supplier_invoice_no"),
+		"supplier_invoice_date": str(doc.get("supplier_invoice_date") or ""),
+		"supplier_invoice_amount": flt(doc.get("supplier_invoice_amount") or 0),
+		"supplier_invoice_file": doc.get("supplier_invoice_file"),
+		"net_payable": flt(doc.get("net_payable") or 0),
+		"review_state": doc.get("review_state"),
+		"docstatus": doc.docstatus,
+	}

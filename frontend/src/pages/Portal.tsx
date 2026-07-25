@@ -23,6 +23,7 @@ import type { WorkOrderRABill } from "../lib/types";
 const WO_METHOD = "dux_civil_works.dux_work_orders.doctype.work_order_ra_bill.work_order_ra_bill.get_portal_work_orders";
 const SEED_METHOD = "dux_civil_works.dux_work_orders.doctype.work_order_ra_bill.work_order_ra_bill.get_initial_bill_entries";
 const APPLY_METHOD = "dux_civil_works.dux_work_orders.doctype.work_order_ra_bill.work_order_ra_bill.apply_review_action";
+const UPLOAD_METHOD = "/api/method/dux_civil_works.dux_work_orders.doctype.work_order_ra_bill.work_order_ra_bill.upload_supplier_invoice";
 
 const n = (v: any) => { const x = parseFloat(v); return Number.isFinite(x) ? x : 0; };
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -602,6 +603,8 @@ function PortalClaim() {
         ) : undefined}
       />
 
+      {b.docstatus === 1 && <InvoiceUpload bill={b} onDone={() => mutate()} />}
+
       {canResend && (
         <Card style={{ padding: 15, marginBottom: 16, borderLeft: "3px solid var(--err)" }}>
           <div style={{ fontWeight: 650, fontSize: 13, color: "var(--err)" }}>The client has sent this back to you</div>
@@ -677,7 +680,105 @@ function PortalClaim() {
   );
 }
 
+
+/* Attach the contractor's own tax invoice to an approved claim.
+ * They upload a document and three facts; the client still raises the
+ * actual Purchase Invoice. Nothing here touches the ledger. */
+function InvoiceUpload({ bill, onDone }: { bill: any; onDone: () => void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [no, setNo] = useState(bill.supplier_invoice_no || "");
+  const [date, setDate] = useState(bill.supplier_invoice_date || todayISO());
+  const [amount, setAmount] = useState(String(n(bill.net_payable) || ""));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const already = bill.supplier_invoice_file;
+
+  async function send() {
+    if (!file) { setErr("Choose your invoice file first."); return; }
+    setBusy(true); setErr(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("ra_bill", bill.name);
+      fd.append("invoice_no", no);
+      fd.append("invoice_date", date);
+      fd.append("invoice_amount", amount);
+      const res = await fetch(UPLOAD_METHOD, {
+        method: "POST",
+        credentials: "include",
+        headers: { "X-Frappe-CSRF-Token": (window as any).csrf_token || "" },
+        body: fd,
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw j;
+      onDone();
+    } catch (e: any) {
+      setErr(serverMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (already) {
+    return (
+      <Card style={{ padding: 16, marginBottom: 18, borderLeft: "3px solid var(--ok)" }}>
+        <div style={{ fontWeight: 650, fontSize: 13, color: "var(--ok)" }}>Your tax invoice is with the client</div>
+        <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginTop: 8, fontSize: 12.5 }}>
+          <span><span style={{ color: "var(--text-muted)" }}>Invoice no </span><b>{bill.supplier_invoice_no || "—"}</b></span>
+          <span><span style={{ color: "var(--text-muted)" }}>Dated </span><b>{fmtDate(bill.supplier_invoice_date)}</b></span>
+          <span><span style={{ color: "var(--text-muted)" }}>Amount </span><b className="mono">{num(bill.supplier_invoice_amount)}</b></span>
+          <a href={already} target="_blank" rel="noreferrer" style={{ color: "#c96a10", fontWeight: 600 }}>View document</a>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card style={{ padding: 18, marginBottom: 18, borderLeft: "3px solid #c96a10" }}>
+      <div style={{ fontWeight: 700, fontSize: 13.5 }}>Upload your tax invoice</div>
+      <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3, marginBottom: 12 }}>
+        This claim is approved for <b className="mono">{num(bill.net_payable)}</b>. Raise your invoice for that
+        amount and attach it here — PDF or photo, up to 5 MB.
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12 }}>
+        <div>
+          <div className="eyebrow" style={{ marginBottom: 5 }}>Invoice no</div>
+          <input value={no} onChange={(e) => setNo(e.target.value)} placeholder="e.g. TVC/2026-27/014"
+            style={{ height: 36, width: "100%", padding: "0 10px", borderRadius: 8, border: "1px solid var(--border-strong)", background: "var(--bg-surface)", color: "var(--text-primary)", fontSize: 13 }} />
+        </div>
+        <div>
+          <div className="eyebrow" style={{ marginBottom: 5 }}>Invoice date</div>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+            style={{ height: 36, width: "100%", padding: "0 10px", borderRadius: 8, border: "1px solid var(--border-strong)", background: "var(--bg-surface)", color: "var(--text-primary)", fontSize: 13 }} />
+        </div>
+        <div>
+          <div className="eyebrow" style={{ marginBottom: 5 }}>Invoice amount</div>
+          <input type="number" step="any" value={amount} onChange={(e) => setAmount(e.target.value)}
+            style={{ height: 36, width: "100%", padding: "0 10px", borderRadius: 8, border: "1px solid var(--border-strong)", background: "var(--bg-surface)", color: "var(--text-primary)", fontSize: 13, textAlign: "right", fontFamily: "var(--font-mono, monospace)" }} />
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
+        <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setFile(e.target.files?.[0] || null)}
+          style={{ fontSize: 12.5, color: "var(--text-secondary)" }} />
+        <button onClick={send} disabled={busy || !file} style={{
+          marginLeft: "auto", background: (busy || !file) ? "var(--border-strong)" : "#c96a10", color: "#fff",
+          border: "none", borderRadius: 8, padding: "9px 16px", fontSize: 13, fontWeight: 650,
+          cursor: (busy || !file) ? "not-allowed" : "pointer",
+        }}>{busy ? "Uploading…" : "Send invoice to client"}</button>
+      </div>
+      {n(amount) > 0 && Math.abs(n(amount) - n(bill.net_payable)) > 1 && (
+        <div style={{ fontSize: 12, color: "var(--err)", marginTop: 10 }}>
+          Heads up: this differs from the approved amount of {num(bill.net_payable)}. The client may query it.
+        </div>
+      )}
+      {err && <div style={{ fontSize: 12.5, color: "var(--err)", marginTop: 10, whiteSpace: "pre-wrap" }}>{err}</div>}
+    </Card>
+  );
+}
+
 /* ---------------- entry ---------------- */
+
 
 export default function Portal() {
   return (
