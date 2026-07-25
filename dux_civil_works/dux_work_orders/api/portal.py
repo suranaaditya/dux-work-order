@@ -119,6 +119,15 @@ def _doc_allowed(doc, user=None):
 		return False
 
 	value = doc.get(fieldname) if hasattr(doc, "get") else None
+
+	# A brand-new RA Bill has no supplier yet — it is fetched from the linked
+	# work order during validate. Resolve it here too, or creating a claim
+	# would be denied before the document ever gets a supplier.
+	if not value and doctype == "Work Order RA Bill":
+		wo = doc.get("civil_work_order") if hasattr(doc, "get") else None
+		if wo:
+			value = frappe.db.get_value("Work Order Contract", wo, "supplier")
+
 	return bool(value) and value in get_portal_suppliers(user)
 
 
