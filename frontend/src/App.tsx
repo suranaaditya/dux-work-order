@@ -1,6 +1,8 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { Shell } from "./components/Shell";
 import { CompanyProvider } from "./lib/company";
+import { PortalProvider, usePortal } from "./lib/portal";
+import Portal from "./pages/Portal";
 import Dashboard from "./pages/Dashboard";
 import WorkOrders from "./pages/WorkOrders";
 import WorkOrderDetail from "./pages/WorkOrderDetail";
@@ -24,7 +26,32 @@ import PaymentDetail from "./pages/PaymentDetail";
 import Reports from "./pages/Reports";
 import Soon from "./pages/Soon";
 
+/* Staff and contractors share one bundle; the SERVER decides which app you
+ * get. This is a convenience routing decision only — every read and write is
+ * scoped server-side regardless of what renders here. */
+function Router() {
+  const { ctx, isLoading } = usePortal();
+  if (isLoading) return null;
+  if (ctx?.is_portal_user) {
+    return (
+      <Routes>
+        <Route path="/portal/*" element={<Portal />} />
+        <Route path="*" element={<Navigate to="/portal" replace />} />
+      </Routes>
+    );
+  }
+  return <StaffApp />;
+}
+
 export default function App() {
+  return (
+    <PortalProvider>
+      <Router />
+    </PortalProvider>
+  );
+}
+
+function StaffApp() {
   return (
     <CompanyProvider>
       <Shell>
