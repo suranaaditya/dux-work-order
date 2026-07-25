@@ -11,7 +11,8 @@
   "mobilization_advance_account",
   "material_advance_account",
   "labour_cess_payable_account",
-  "other_deductions_account"
+  "other_deductions_account",
+  "enable_ra_bill_review"
  ],
  "fields": [
   {
@@ -64,13 +65,21 @@
    "fieldtype": "Link",
    "label": "Other Deductions Default Account",
    "options": "Account"
+  },
+  {
+   "default": "0",
+   "description": "Route this company's RA bills through claim review before they can be approved.",
+   "fieldname": "enable_ra_bill_review",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Enable RA Bill Review"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-04-29 00:43:49.586869",
+ "modified": "2026-07-25 16:39:02.436859",
  "modified_by": "Administrator",
  "module": "Dux Work Orders",
  "name": "Work Order Company Account",

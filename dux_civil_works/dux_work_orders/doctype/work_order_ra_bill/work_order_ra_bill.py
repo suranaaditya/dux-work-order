@@ -21,6 +21,15 @@ class WorkOrderRABill(Document):
 	def before_insert(self):
 		self.assign_bill_number()
 		self.populate_bill_entries_from_scope_map()
+		# Claim review is opt-in per company. A company that has not enabled it
+		# leaves review_state empty and behaves exactly as it always has.
+		if self.is_review_enabled():
+			self.review_state = "Draft"
+
+	def before_submit(self):
+		self.enforce_review_gate()
+		self.enforce_deviation_limits()
+		self.enforce_recovery_caps_against_register()
 
 	def validate(self):
 		self.validate_wo_consistency()
@@ -34,10 +43,6 @@ class WorkOrderRABill(Document):
 		self.compute_totals_and_net_payable()
 		self.set_billing_status()
 
-	def before_submit(self):
-		self.enforce_deviation_limits()
-		self.enforce_recovery_caps_against_register()
-
 	def on_submit(self):
 		self.post_recoveries_to_register()
 		# Persist billing_status that validate() set; on_submit runs after DB update.
@@ -47,6 +52,12 @@ class WorkOrderRABill(Document):
 		self.reverse_recoveries_on_register()
 		# Persist billing_status; on_cancel runs after DB update so direct attr won't save.
 		self.db_set("billing_status", "Cancelled", update_modified=False)
+		# Stamp the review state too, or a cancelled claim keeps reading
+		# "Approved" forever. (A Frappe Workflow would NOT do this: its
+		# state-stamping runs from _validate(), which document.py skips on
+		# the cancel path — one reason review is a plain field here.)
+		if self.review_state:
+			self.db_set("review_state", "Rejected", update_modified=False)
 
 	# ============================================================
 	# before_insert helpers
@@ -660,3 +671,182 @@ def get_initial_bill_entries(work_order_contract, existing_entries=None):
 		"cumulative_qty": float(be.cumulative_qty or 0),
 		"remarks": be.remarks,
 	} for be in (bill.bill_entries or [])]
+
+
+# ============================================================
+# Claim review (Phase 2) — deliberately NOT a Frappe Workflow
+# ============================================================
+# A Frappe Workflow attaches to a DOCTYPE, so it would gate every tenant on
+# this bench (Gaya, GH Raisoni and MN Globex all hold RA bills here). Review
+# is therefore a plain `review_state` field, enforced in this controller and
+# switched on PER COMPANY via Work Order Settings -> company_accounts ->
+# enable_ra_bill_review. A company that has not opted in leaves review_state
+# empty and behaves exactly as before.
+#
+# Transitions are applied with db_set, so moving a claim between review
+# states never re-runs validate(). That is what keeps a claim actionable even
+# when its parent work order or a variation has since changed — the strict
+# checks run only where they must, on approve (which submits the document).
+
+#: state -> {action: next_state}
+REVIEW_TRANSITIONS = {
+	"Draft": {"submit_for_review": "Pending Review"},
+	"Pending Review": {
+		"approve": "Approved",
+		"return_for_revision": "Returned for Revision",
+		"reject": "Rejected",
+	},
+	"Returned for Revision": {"submit_for_review": "Pending Review"},
+	"Rejected": {"reopen": "Draft"},
+	"Approved": {},
+}
+
+#: action -> roles that may perform it. System Manager may always act.
+REVIEW_ACTION_ROLES = {
+	"submit_for_review": ("WO Creator", "Accounts User", "Accounts Manager", "Contractor Portal"),
+	"approve": ("WO L2 Approver", "Accounts Manager"),
+	"return_for_revision": ("WO L2 Approver", "WO Verifier", "Accounts Manager"),
+	"reject": ("WO L2 Approver", "Accounts Manager"),
+	"reopen": ("WO Creator", "Accounts User", "Accounts Manager"),
+}
+
+REVIEW_ACTION_LABELS = {
+	"submit_for_review": "Submit for review",
+	"approve": "Approve",
+	"return_for_revision": "Return for revision",
+	"reject": "Reject",
+	"reopen": "Re-open",
+}
+
+
+def is_review_enabled_for_company(company):
+	"""True if this company routes RA bills through claim review."""
+	if not company:
+		return False
+	try:
+		settings = frappe.get_cached_doc("Work Order Settings")
+	except Exception:
+		return False
+	for row in (settings.get("company_accounts") or []):
+		if row.get("company") == company:
+			return bool(row.get("enable_ra_bill_review"))
+	return False
+
+
+def _review_methods(cls):
+	def is_review_enabled(self):
+		return is_review_enabled_for_company(self.get("company"))
+
+	def enforce_review_gate(self):
+		"""An opted-in company may only submit a claim that has been approved.
+
+		This is the backstop behind the UI: a raw REST submit, a script or a
+		Desk click all land here.
+		"""
+		if not self.is_review_enabled():
+			return
+		state = self.get("review_state")
+		if state != "Approved":
+			frappe.throw(
+				_("{0} is in review state {1}. It must be approved before it can be submitted.").format(
+					frappe.bold(self.name or _("This claim")),
+					frappe.bold(state or _("Draft")),
+				),
+				title=_("Claim not approved"),
+			)
+
+	def get_review_actions(self, user=None):
+		"""Actions the given user may perform on this claim, right now."""
+		if not self.is_review_enabled() or self.docstatus != 0:
+			return []
+		state = self.get("review_state") or "Draft"
+		roles = set(frappe.get_roles(user or frappe.session.user))
+		out = []
+		for action, next_state in (REVIEW_TRANSITIONS.get(state) or {}).items():
+			allowed = set(REVIEW_ACTION_ROLES.get(action, ()))
+			if "System Manager" in roles or (roles & allowed):
+				out.append({
+					"action": action,
+					"label": REVIEW_ACTION_LABELS.get(action, action),
+					"next_state": next_state,
+				})
+		return out
+
+	@frappe.whitelist()
+	def apply_review_action(self, action, comment=None):
+		"""Move this claim through the review chain.
+
+		Approving is the only transition that touches docstatus: it submits
+		the document, so the whole existing engine (allocator, deviation
+		ceilings, recovery caps, advance-register posting) runs exactly as it
+		always has. Every other transition is a db_set and re-runs nothing.
+		"""
+		if not self.is_review_enabled():
+			frappe.throw(_("Claim review is not enabled for {0}.").format(self.get("company")))
+		if self.docstatus != 0:
+			frappe.throw(_("This claim is no longer a draft."))
+
+		state = self.get("review_state") or "Draft"
+		allowed = {a["action"] for a in self.get_review_actions()}
+		if action not in allowed:
+			frappe.throw(
+				_("You cannot {0} a claim that is {1}.").format(
+					REVIEW_ACTION_LABELS.get(action, action), frappe.bold(state)
+				),
+				frappe.PermissionError,
+			)
+
+		next_state = REVIEW_TRANSITIONS[state][action]
+
+		if action == "submit_for_review":
+			# Record what was claimed so the reviewer can see any later drift.
+			# Informational only — never used to block, so a legitimately zero
+			# claim is not silently exempted from anything.
+			self.db_set("claimed_net_payable", flt(self.get("net_payable") or 0), update_modified=False)
+
+		if action == "approve":
+			self.db_set("review_state", "Approved", update_modified=False)
+			self.reload()
+			try:
+				self.submit()
+			except Exception:
+				# Approval failed a hard check (deviation ceiling, recovery cap,
+				# cancelled work order). Put the claim back so it stays actionable.
+				frappe.db.rollback()
+				self.reload()
+				self.db_set("review_state", "Pending Review", update_modified=False)
+				frappe.db.commit()
+				raise
+		else:
+			self.db_set("review_state", next_state, update_modified=False)
+
+		if comment:
+			self.add_comment("Comment", text=comment)
+
+		return {"review_state": self.get("review_state"), "docstatus": self.docstatus}
+
+	cls.is_review_enabled = is_review_enabled
+	cls.enforce_review_gate = enforce_review_gate
+	cls.get_review_actions = get_review_actions
+	cls.apply_review_action = apply_review_action
+	return cls
+
+
+_review_methods(WorkOrderRABill)
+
+
+@frappe.whitelist()
+def get_review_state(ra_bill):
+	"""Review state + the actions the signed-in user may take. Permission
+	checked against the document, so portal scoping applies."""
+	doc = frappe.get_doc("Work Order RA Bill", ra_bill)
+	doc.check_permission("read")
+	return {
+		"name": doc.name,
+		"review_enabled": doc.is_review_enabled(),
+		"review_state": doc.get("review_state"),
+		"claimed_net_payable": flt(doc.get("claimed_net_payable") or 0),
+		"net_payable": flt(doc.get("net_payable") or 0),
+		"docstatus": doc.docstatus,
+		"actions": doc.get_review_actions(),
+	}

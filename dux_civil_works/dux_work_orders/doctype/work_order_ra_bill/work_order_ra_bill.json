@@ -39,7 +39,9 @@
   "invoiced_amount",
   "per_invoiced",
   "cb_invoicing_1",
-  "billing_status"
+  "billing_status",
+  "review_state",
+  "claimed_net_payable"
  ],
  "fields": [
   {
@@ -274,13 +276,33 @@
    "label": "Gross This Bill (incl. tax)",
    "options": "company_currency",
    "read_only": 1
+  },
+  {
+   "description": "Claim review status. Empty means this company does not use claim review.",
+   "fieldname": "review_state",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Review State",
+   "no_copy": 1,
+   "options": "\nDraft\nPending Review\nReturned for Revision\nApproved\nRejected",
+   "read_only": 1
+  },
+  {
+   "description": "Net payable at the moment the claim was submitted for review (informational).",
+   "fieldname": "claimed_net_payable",
+   "fieldtype": "Currency",
+   "label": "Net Payable as Claimed",
+   "no_copy": 1,
+   "options": "company_currency",
+   "print_hide": 1,
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-07-25 15:25:59.149576",
+ "modified": "2026-07-25 16:39:02.740815",
  "modified_by": "Administrator",
  "module": "Dux Work Orders",
  "name": "Work Order RA Bill",
