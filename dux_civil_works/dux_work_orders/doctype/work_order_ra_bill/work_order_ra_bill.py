@@ -32,6 +32,7 @@ class WorkOrderRABill(Document):
 		self.enforce_recovery_caps_against_register()
 
 	def validate(self):
+		self._enforce_portal_scope()
 		self.validate_wo_consistency()
 		self.validate_period_dates()
 		# Allocator: read bill_entries (one row per item, with engineer's
@@ -909,3 +910,98 @@ def update_certified_quantities(ra_bill, entries, deductions=None):
 		"gross_this_bill": flt(doc.gross_this_bill or 0),
 		"total_deductions": flt(doc.total_deductions or 0),
 	}
+
+
+def _portal_guard(cls):
+	"""Server-side limits on what an external contractor may do to a claim.
+
+	Phase 1 scopes what a contractor can SEE. This scopes what they can
+	WRITE, and runs inside validate() so it applies to the portal UI, a raw
+	REST PUT and a script alike.
+	"""
+
+	def _enforce_portal_scope(self):
+		from dux_civil_works.dux_work_orders.api.portal import (
+			get_portal_suppliers,
+			is_portal_user,
+		)
+
+		if not is_portal_user():
+			return
+
+		suppliers = get_portal_suppliers()
+
+		# The claim must belong to one of this contractor's own work orders.
+		# Resolved from the work order rather than trusting the posted
+		# supplier field.
+		wo_supplier = frappe.db.get_value(
+			"Work Order Contract", self.civil_work_order, "supplier"
+		)
+		if not wo_supplier or wo_supplier not in suppliers:
+			frappe.throw(
+				_("You can only raise claims against your own work orders."),
+				frappe.PermissionError,
+			)
+		self.supplier = wo_supplier
+
+		# A contractor may only touch a claim that is theirs to edit.
+		if self.docstatus != 0:
+			frappe.throw(_("This claim is no longer editable."), frappe.PermissionError)
+		state = self.get("review_state") or "Draft"
+		if state not in ("Draft", "Returned for Revision"):
+			frappe.throw(
+				_("This claim is with {0} for review and cannot be changed.").format(
+					frappe.bold(self.get("company") or _("the client"))
+				),
+				frappe.PermissionError,
+			)
+
+		# Deductions are the client's call, never the contractor's. Drop any
+		# hand-added rows; validate() rebuilds the auto-suggested ones.
+		manual = [d for d in (self.deductions or []) if not d.is_auto_suggested]
+		if manual:
+			self.set("deductions", [d for d in (self.deductions or []) if d.is_auto_suggested])
+
+	cls._enforce_portal_scope = _enforce_portal_scope
+	return cls
+
+
+_portal_guard(WorkOrderRABill)
+
+
+@frappe.whitelist()
+def get_portal_work_orders():
+	"""Work orders visible to the signed-in contractor, with billing progress.
+
+	A contractor commonly holds SEVERAL work orders, so this always returns a
+	list. Scoping is the Phase-1 permission layer's job — get_list applies it.
+	"""
+	from dux_civil_works.dux_work_orders.api.portal import is_portal_user
+
+	if not is_portal_user():
+		frappe.throw(_("Not a contractor portal user."), frappe.PermissionError)
+
+	wos = frappe.get_list(
+		"Work Order Contract",
+		filters={"docstatus": 1},
+		fields=[
+			"name", "work_title", "company", "supplier", "wo_date",
+			"total_amount", "site_location", "scheduled_completion_date",
+		],
+		order_by="wo_date desc",
+		limit_page_length=0,
+	)
+	for wo in wos:
+		agg = frappe.db.sql(
+			"""select ifnull(sum(net_payable),0) certified, count(*) bills
+			   from `tabWork Order RA Bill`
+			   where civil_work_order=%s and docstatus=1""",
+			(wo["name"],), as_dict=True,
+		)[0]
+		wo["certified"] = flt(agg.certified)
+		wo["bills"] = agg.bills
+		wo["open_claims"] = frappe.db.count(
+			"Work Order RA Bill",
+			{"civil_work_order": wo["name"], "docstatus": 0},
+		)
+	return wos
