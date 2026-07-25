@@ -539,7 +539,7 @@ function PortalNewClaim() {
       {overLines.length > 0 && (
         <Card style={{ padding: 15, marginBottom: 16, borderLeft: "3px solid var(--err)" }}>
           <div style={{ color: "var(--err)", fontWeight: 650, fontSize: 13 }}>
-            {overLines.length} item{overLines.length === 1 ? "" : "s"} exceed the sanctioned quantity
+            {overLines.length} item{overLines.length === 1 ? " exceeds" : "s exceed"} the sanctioned quantity
           </div>
           <div style={{ fontSize: 12.5, color: "var(--text-secondary)", marginTop: 4 }}>
             You cannot claim more than the work order allows. Reduce the highlighted lines to their
