@@ -850,3 +850,62 @@ def get_review_state(ra_bill):
 		"docstatus": doc.docstatus,
 		"actions": doc.get_review_actions(),
 	}
+
+
+@frappe.whitelist()
+def apply_review_action(ra_bill, action, comment=None):
+	"""Module-level entry point for the SPA (plain /api/method call).
+
+	Permission is enforced twice: document read permission here (so the
+	contractor-portal supplier scoping applies), then the per-action role
+	check inside the document method.
+	"""
+	doc = frappe.get_doc("Work Order RA Bill", ra_bill)
+	doc.check_permission("read")
+	return doc.apply_review_action(action, comment)
+
+
+@frappe.whitelist()
+def update_certified_quantities(ra_bill, entries, deductions=None):
+	"""Reviewer edits: set certified qty per line and/or adjust deductions.
+
+	Only ever touches a DRAFT claim. Saving re-runs validate(), so the
+	allocator, deduction engine and totals recompute server-side — the
+	client never sends money figures, only certified quantities.
+	"""
+	import json
+
+	doc = frappe.get_doc("Work Order RA Bill", ra_bill)
+	doc.check_permission("write")
+	if doc.docstatus != 0:
+		frappe.throw(_("Only a draft claim can be edited."))
+
+	if isinstance(entries, str):
+		entries = json.loads(entries)
+	by_key = {e.get("item_key"): e for e in (entries or []) if e.get("item_key")}
+	for row in (doc.bill_entries or []):
+		payload = by_key.get(row.item_key)
+		if payload is None:
+			continue
+		if payload.get("cumulative_qty") is not None:
+			row.cumulative_qty = flt(payload.get("cumulative_qty"))
+		if payload.get("remarks") is not None:
+			row.remarks = payload.get("remarks")
+
+	if deductions is not None:
+		if isinstance(deductions, str):
+			deductions = json.loads(deductions)
+		by_name = {d.get("name"): d for d in (deductions or []) if d.get("name")}
+		for row in (doc.deductions or []):
+			payload = by_name.get(row.name)
+			if payload and payload.get("amount") is not None:
+				row.amount = flt(payload.get("amount"))
+				# A hand-set figure is no longer the engine's suggestion.
+				row.is_auto_suggested = 0
+
+	doc.save()
+	return {
+		"net_payable": flt(doc.net_payable or 0),
+		"gross_this_bill": flt(doc.gross_this_bill or 0),
+		"total_deductions": flt(doc.total_deductions or 0),
+	}

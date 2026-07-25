@@ -193,6 +193,49 @@ export interface WorkOrderRABill extends BaseDoc {
   per_invoiced?: number;
   billing_status?: BillingStatus;
   workflow_state?: string;
+  /* Claim review (per-company; empty when the company hasn't opted in) */
+  review_state?: ReviewState;
+  claimed_net_payable?: number;
+  bill_entries?: WorkOrderRABillEntry[];
+}
+
+/* ---- Claim review ---- */
+
+export type ReviewState =
+  | ""
+  | "Draft"
+  | "Pending Review"
+  | "Returned for Revision"
+  | "Approved"
+  | "Rejected";
+
+export interface WorkOrderRABillEntry {
+  name: string;
+  idx?: number;
+  item_key?: string;
+  item_no?: string;
+  summary_head?: string;
+  description?: string;
+  uom?: string;
+  total_sanctioned_qty?: number;
+  cumulative_qty?: number;
+  remarks?: string;
+}
+
+export interface ReviewAction {
+  action: "submit_for_review" | "approve" | "return_for_revision" | "reject" | "reopen";
+  label: string;
+  next_state: ReviewState;
+}
+
+export interface ReviewStatus {
+  name: string;
+  review_enabled: boolean;
+  review_state?: ReviewState;
+  claimed_net_payable?: number;
+  net_payable?: number;
+  docstatus?: 0 | 1 | 2;
+  actions: ReviewAction[];
 }
 
 // Additions vs deductions: negative-natured lines add to the bill.

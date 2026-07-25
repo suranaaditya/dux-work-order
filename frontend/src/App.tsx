@@ -8,6 +8,7 @@ import WorkOrderStatement from "./pages/WorkOrderStatement";
 import NewWorkOrder from "./pages/NewWorkOrder";
 import RABills from "./pages/RABills";
 import RABillDetail from "./pages/RABillDetail";
+import ReviewRABill from "./pages/ReviewRABill";
 import NewRABill from "./pages/NewRABill";
 import Variations from "./pages/Variations";
 import NewVariation from "./pages/NewVariation";
@@ -39,6 +40,7 @@ export default function App() {
         <Route path="/ra-bills" element={<RABills />} />
         <Route path="/ra-bills/new" element={<NewRABill />} />
         <Route path="/ra-bills/:name/record-invoice" element={<RecordInvoice />} />
+        <Route path="/ra-bills/:name/review" element={<ReviewRABill />} />
         <Route path="/ra-bills/:name" element={<RABillDetail />} />
         <Route path="/invoices" element={<Invoices />} />
         <Route path="/invoices/:name/pay" element={<RecordPayment />} />

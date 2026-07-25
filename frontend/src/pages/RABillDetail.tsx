@@ -16,6 +16,7 @@ import {
   Table,
 } from "../components/ui";
 import { Icon } from "../components/icons";
+import { ReviewBar, serverMessage, useReviewStatus } from "../components/ReviewBar";
 import { fmtDate, inr, num, pct, qty } from "../lib/format";
 import {
   isAddition,
@@ -35,25 +36,41 @@ function BackLink() {
   );
 }
 
-/* RA Bill actions: submit a draft; record a Purchase Invoice once submitted. */
+/* RA Bill actions.
+ *
+ * For a company that uses claim review the bill must be APPROVED through the
+ * review chain (the server refuses a direct submit), so we show the review
+ * actions plus a link into the review screen. Companies that haven't opted
+ * in keep the plain Submit button exactly as before.
+ */
 function BillActions({ b, onChanged }: { b: WorkOrderRABill; onChanged: () => void }) {
   const nav = useNavigate();
   const submitCall = useFrappePostCall("frappe.client.submit");
+  const { status, mutate: mutateStatus } = useReviewStatus(b.name);
   const [err, setErr] = useState<string | null>(null);
+
   async function submit() {
     setErr(null);
     try {
       await submitCall.call({ doc: JSON.stringify(b) });
       onChanged();
     } catch (e: any) {
-      setErr(e?.message || "Could not submit.");
+      setErr(serverMessage(e));
     }
   }
+
+  const reviewed = !!status?.review_enabled;
   const fullyInvoiced = ["Fully Invoiced", "Closed", "Cancelled"].includes((b as any).billing_status);
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
-      <div style={{ display: "flex", gap: 10 }}>
-        {b.docstatus === 0 && (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }}>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+        {reviewed && b.docstatus === 0 && (
+          <Btn onClick={() => nav(`/ra-bills/${encodeURIComponent(b.name)}/review`)}>
+            <Icon name="ruler" size={15} /> Review claim
+          </Btn>
+        )}
+        {!reviewed && b.docstatus === 0 && (
           <Btn variant="primary" onClick={submit} disabled={submitCall.loading}>
             {submitCall.loading ? "Submitting…" : "Submit bill"}
           </Btn>
@@ -64,7 +81,10 @@ function BillActions({ b, onChanged }: { b: WorkOrderRABill; onChanged: () => vo
           </Btn>
         )}
       </div>
-      {err && <span style={{ fontSize: 12, color: "var(--err)" }}>{err}</span>}
+      {reviewed && (
+        <ReviewBar raBill={b.name} onChanged={() => { mutateStatus(); onChanged(); }} compact />
+      )}
+      {err && <span style={{ fontSize: 12, color: "var(--err)", maxWidth: 380, textAlign: "right" }}>{err}</span>}
     </div>
   );
 }
@@ -168,7 +188,7 @@ export default function RABillDetail() {
   if (!b) return <ErrorNote error="RA Bill not found." />;
 
   const items = b.items || [];
-  const statusChips = [b.workflow_state, b.billing_status].filter(Boolean) as string[];
+  const statusChips = [b.review_state, b.billing_status].filter(Boolean) as string[];
 
   const cols: Col<WorkOrderRABillItem>[] = [
     { head: "#", cell: (r) => <span className="mono" style={{ color: "var(--text-muted)" }}>{r.item_no}</span>, width: 44 },
