@@ -146,7 +146,18 @@ export default function WorkOrderDetail() {
           </span>
         }
         sub={w.work_title}
-        right={<WorkflowBar doc={w} onChanged={() => mutate()} />}
+        right={
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <Link to={`/work-orders/${encodeURIComponent(name)}/statement`} style={{
+              display: "inline-flex", alignItems: "center", gap: 7, height: 36, padding: "0 14px",
+              borderRadius: 9, border: "1px solid var(--border-strong)", background: "var(--bg-surface)",
+              color: "var(--text-primary)", fontSize: 13, fontWeight: 500, whiteSpace: "nowrap",
+            }}>
+              <Icon name="report" size={15} /> Statement
+            </Link>
+            <WorkflowBar doc={w} onChanged={() => mutate()} />
+          </div>
+        }
       />
 
       {/* Commercial summary */}

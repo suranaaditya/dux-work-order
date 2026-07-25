@@ -4,6 +4,7 @@ import { useFrappeGetDoc, useFrappePostCall } from "frappe-react-sdk";
 import { Btn, Card, Chip, ErrorNote, KV, Loading, Money, Num, PageHead, SectionTitle, StatTile } from "../components/ui";
 import { Icon } from "../components/icons";
 import { fmtDate } from "../lib/format";
+import { usePaymentsForInvoices } from "../components/payments";
 
 export default function InvoiceDetail() {
   const { name = "" } = useParams();
@@ -11,6 +12,9 @@ export default function InvoiceDetail() {
   const { data: pi, isLoading, error, mutate } = useFrappeGetDoc<any>("Purchase Invoice", name);
   const submitCall = useFrappePostCall("frappe.client.submit");
   const [actErr, setActErr] = useState<string | null>(null);
+  // Hook must run before any early return (rules of hooks); it no-ops on an
+  // empty list, so a still-loading or draft invoice simply fetches nothing.
+  const pay = usePaymentsForInvoices(pi?.docstatus === 1 ? [pi.name] : []);
 
   if (isLoading) return <Loading label="Loading invoice…" />;
   if (error) return <ErrorNote error={error} />;
@@ -100,6 +104,53 @@ export default function InvoiceDetail() {
           </table>
         </div>
       </Card>
+
+      {pi.docstatus === 1 && (
+        <Card style={{ padding: "18px 0 6px", marginBottom: 18 }}>
+          <div style={{ padding: "0 18px" }}>
+            <SectionTitle right={
+              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                {pay.isLoading ? "loading…" : `${pay.rows.length} payment${pay.rows.length === 1 ? "" : "s"}`}
+              </span>
+            }>Payments against this invoice</SectionTitle>
+          </div>
+          {pay.rows.length ? (
+            <>
+              <div className="scroll-x">
+                <table style={{ fontSize: 13 }}>
+                  <thead>
+                    <tr>{["Payment", "Date", "Mode", "Reference", "Allocated"].map((h, i) => (
+                      <th key={i} style={{ textAlign: i === 4 ? "right" : "left", padding: "10px 14px", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--text-muted)", borderBottom: "1px solid var(--border-subtle)" }}>{h}</th>
+                    ))}</tr>
+                  </thead>
+                  <tbody>
+                    {pay.rows.map((p) => (
+                      <tr key={p.payment}>
+                        <td style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-subtle)" }}>
+                          <Link to={`/payments/${encodeURIComponent(p.payment)}`} style={{ color: "var(--iris)", fontWeight: 600 }}>{p.payment}</Link>
+                        </td>
+                        <td style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-subtle)" }} className="mono">{fmtDate(p.posting_date)}</td>
+                        <td style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-subtle)" }}>{p.mode_of_payment || "—"}</td>
+                        <td style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-subtle)" }} className="mono">{p.reference_no || "—"}</td>
+                        <td style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-subtle)", textAlign: "right" }} className="mono"><Num v={p.allocated} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 26, padding: "12px 18px 6px", borderTop: "1px solid var(--border-subtle)", marginTop: 6, fontSize: 12.5 }}>
+                <span style={{ color: "var(--text-muted)" }}>Grand total <span className="mono" style={{ color: "var(--text-primary)" }}><Num v={pi.grand_total} /></span></span>
+                <span style={{ color: "var(--text-muted)" }}>Paid <span className="mono" style={{ color: "var(--ok)", fontWeight: 600 }}><Num v={pay.totalPaid} /></span></span>
+                <span style={{ color: "var(--text-muted)" }}>Outstanding <span className="mono" style={{ color: (pi.outstanding_amount || 0) > 0.009 ? "var(--err)" : "var(--ok)", fontWeight: 700 }}><Num v={pi.outstanding_amount} /></span></span>
+              </div>
+            </>
+          ) : (
+            <div style={{ padding: 20, color: "var(--text-muted)", fontSize: 13 }}>
+              {pay.isLoading ? "Loading payments…" : "No payment recorded against this invoice yet."}
+            </div>
+          )}
+        </Card>
+      )}
 
       {(pi.taxes || []).length > 0 && (
         <Card style={{ padding: "18px 0 6px" }}>

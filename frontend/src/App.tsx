@@ -4,6 +4,7 @@ import { CompanyProvider } from "./lib/company";
 import Dashboard from "./pages/Dashboard";
 import WorkOrders from "./pages/WorkOrders";
 import WorkOrderDetail from "./pages/WorkOrderDetail";
+import WorkOrderStatement from "./pages/WorkOrderStatement";
 import NewWorkOrder from "./pages/NewWorkOrder";
 import RABills from "./pages/RABills";
 import RABillDetail from "./pages/RABillDetail";
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="/work-orders" element={<WorkOrders />} />
         <Route path="/work-orders/new" element={<NewWorkOrder />} />
         <Route path="/work-orders/:name/variations/new" element={<NewVariation />} />
+        <Route path="/work-orders/:name/statement" element={<WorkOrderStatement />} />
         <Route path="/work-orders/:name" element={<WorkOrderDetail />} />
         <Route path="/variations" element={<Variations />} />
         <Route path="/variations/:name" element={<VariationDetail />} />

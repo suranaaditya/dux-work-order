@@ -199,3 +199,45 @@ export interface WorkOrderRABill extends BaseDoc {
 export const ADDITION_NATURES: DeductionNature[] = ["Price Escalation", "Other Addition"];
 export const isAddition = (nature?: DeductionNature) =>
   !!nature && ADDITION_NATURES.includes(nature);
+
+/* ---- Advance Register (mobilization / material advances) ---- */
+
+export type AdvanceType = "Mobilization" | "Material";
+
+export interface WorkOrderAdvanceTranche {
+  name: string;
+  idx?: number;
+  tranche_date?: string;
+  advance_type?: AdvanceType;
+  amount?: number;
+  payment_entry?: string;
+  remarks?: string;
+}
+
+export interface WorkOrderAdvanceRecovery {
+  name: string;
+  idx?: number;
+  recovery_date?: string;
+  advance_type?: AdvanceType;
+  amount?: number;
+  ra_bill?: string;
+  remarks?: string;
+}
+
+export interface WorkOrderAdvanceRegister extends BaseDoc {
+  civil_work_order?: string;
+  company?: string;
+  supplier?: string;
+  supplier_name?: string;
+  tranches?: WorkOrderAdvanceTranche[];
+  recoveries?: WorkOrderAdvanceRecovery[];
+  mobilization_paid?: number;
+  mobilization_recovered?: number;
+  mobilization_outstanding?: number;
+  material_paid?: number;
+  material_recovered?: number;
+  material_outstanding?: number;
+  total_paid?: number;
+  total_recovered?: number;
+  total_outstanding?: number;
+}
