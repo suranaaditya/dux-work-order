@@ -319,3 +319,23 @@ doc_events = {
 # www/sitebill.html page at /sitebill and uses HASH routing, so it needs NO
 # website_route_rules and NO hooks/controller change — this app's backend is
 # left exactly as on main.
+
+
+# ============================================================
+# Contractor portal — server-side data boundary
+# ============================================================
+# These scope Work Order Contracts and RA Bills to the signed-in
+# contractor's supplier(s). They are INERT for staff: every function
+# returns "no restriction" unless the user holds the "Contractor Portal"
+# role, so adding them cannot change what an existing user sees.
+# See dux_work_orders/api/portal.py for the rules.
+
+permission_query_conditions = {
+    "Work Order Contract": "dux_civil_works.dux_work_orders.api.portal.work_order_query_conditions",
+    "Work Order RA Bill": "dux_civil_works.dux_work_orders.api.portal.ra_bill_query_conditions",
+}
+
+has_permission = {
+    "Work Order Contract": "dux_civil_works.dux_work_orders.api.portal.work_order_has_permission",
+    "Work Order RA Bill": "dux_civil_works.dux_work_orders.api.portal.ra_bill_has_permission",
+}
