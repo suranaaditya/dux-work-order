@@ -1,6 +1,7 @@
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useFrappeGetDoc, useFrappeGetDocList } from "frappe-react-sdk";
 import { Card, Chip, Col, ErrorNote, KV, Loading, Money, PageHead, SectionTitle, StatTile, Table } from "../components/ui";
+import { PortalAccess } from "../components/PortalAccess";
 import { Icon } from "../components/icons";
 import { fmtDate } from "../lib/format";
 import type { WorkOrderContract } from "../lib/types";
@@ -66,6 +67,8 @@ export default function SupplierDetail() {
           <KV label="Payment terms">{s.payment_terms || "—"}</KV>
         </div>
       </Card>
+
+      <div style={{ marginBottom: 18 }}><PortalAccess supplier={name} /></div>
 
       <Card style={{ padding: "18px 0 6px" }}>
         <div style={{ padding: "0 18px" }}>

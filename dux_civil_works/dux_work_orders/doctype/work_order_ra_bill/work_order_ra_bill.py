@@ -30,19 +30,7 @@ class WorkOrderRABill(Document):
 		"""
 		if not self.civil_work_order:
 			return
-		others = frappe.get_all(
-			"Work Order RA Bill",
-			filters={
-				"civil_work_order": self.civil_work_order,
-				"docstatus": 0,
-				"name": ["!=", self.name or ""],
-			},
-			fields=["name", "review_state"],
-		)
-		open_ones = [
-			o for o in others
-			if (o.get("review_state") or "Draft") not in CLOSED_REVIEW_STATES
-		]
+		open_ones = get_open_claims(self.civil_work_order, exclude=self.name)
 		if open_ones:
 			other = open_ones[0]
 			frappe.throw(
@@ -785,6 +773,32 @@ REVIEW_TRANSITIONS = {
 #: work order and does not block the next claim.
 CLOSED_REVIEW_STATES = ("Rejected", "Withdrawn")
 
+
+def get_open_claims(work_order, exclude=None):
+	"""Claims still occupying a work order — the ONE definition of "open".
+
+	A claim is open while it is a draft that has not been closed out.
+	Rejected and Withdrawn claims are done with and free the work order.
+	Every caller must use this: the count on the portal home, the guard that
+	refuses a second claim, and the lookup that offers to withdraw one had
+	drifted apart, and the count was still including withdrawn claims.
+	"""
+	rows = frappe.get_all(
+		"Work Order RA Bill",
+		filters={
+			"civil_work_order": work_order,
+			"docstatus": 0,
+			"name": ["!=", exclude or ""],
+		},
+		fields=["name", "review_state", "bill_date", "net_payable"],
+		order_by="creation asc",
+	)
+	return [
+		r for r in rows
+		if (r.get("review_state") or "Draft") not in CLOSED_REVIEW_STATES
+	]
+
+
 #: action -> roles that may perform it. System Manager may always act.
 REVIEW_ACTION_ROLES = {
 	"submit_for_review": ("WO Creator", "Accounts User", "Accounts Manager", "Contractor Portal"),
@@ -1109,10 +1123,7 @@ def get_portal_work_orders():
 		)[0]
 		wo["certified"] = flt(agg.certified)
 		wo["bills"] = agg.bills
-		wo["open_claims"] = frappe.db.count(
-			"Work Order RA Bill",
-			{"civil_work_order": wo["name"], "docstatus": 0},
-		)
+		wo["open_claims"] = len(get_open_claims(wo["name"]))
 	return wos
 
 
@@ -1258,16 +1269,8 @@ def get_supplier_invoice(ra_bill):
 @frappe.whitelist()
 def get_open_claim(work_order):
 	"""The live claim on this work order, if any. Read-scoped."""
-	rows = frappe.get_list(
-		"Work Order RA Bill",
-		filters={"civil_work_order": work_order, "docstatus": 0},
-		fields=["name", "review_state", "bill_date", "net_payable"],
-		limit_page_length=0,
-	)
-	for r in rows:
-		if (r.get("review_state") or "Draft") not in CLOSED_REVIEW_STATES:
-			return r
-	return None
+	open_ones = get_open_claims(work_order)
+	return open_ones[0] if open_ones else None
 
 
 # ============================================================

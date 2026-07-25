@@ -194,3 +194,169 @@ def get_portal_context():
 		"full_name": frappe.db.get_value("User", user, "full_name"),
 		"suppliers": out,
 	}
+
+
+# ------------------------------------------------------------------
+# Granting portal access (staff only)
+# ------------------------------------------------------------------
+# Everything here is an ADMIN action performed by your own team. A portal
+# user can never reach it — a contractor granting portal access would be a
+# privilege-escalation hole, so every entry point refuses them explicitly
+# rather than relying on the UI not offering the option.
+
+
+def _assert_can_manage_access():
+	"""Only staff who may edit a Supplier can hand out logins."""
+	if is_portal_user():
+		frappe.throw(_("Not permitted."), frappe.PermissionError)
+	if not frappe.has_permission("Supplier", "write"):
+		frappe.throw(
+			_("You need permission to edit Suppliers to manage portal access."),
+			frappe.PermissionError,
+		)
+
+
+@frappe.whitelist()
+def list_portal_users(supplier):
+	"""The logins that can currently see this supplier's work."""
+	_assert_can_manage_access()
+	rows = frappe.db.get_all(
+		"Portal User",
+		filters={"parent": supplier, "parenttype": "Supplier"},
+		fields=["user"],
+	)
+	out = []
+	for r in rows:
+		u = frappe.db.get_value(
+			"User", r["user"],
+			["name", "full_name", "enabled", "last_login", "user_type", "last_active"],
+			as_dict=True,
+		)
+		if not u:
+			continue
+		u["has_portal_role"] = PORTAL_ROLE in frappe.get_roles(u["name"])
+		u["never_signed_in"] = not u.get("last_login")
+		out.append(u)
+	return out
+
+
+@frappe.whitelist()
+def grant_portal_access(supplier, email, full_name=None, send_invite=1):
+	"""Create (or link) a contractor login for this supplier.
+
+	No password is ever set here. Frappe emails the person a link and they
+	choose their own — so nobody, including us, handles their credentials.
+	"""
+	_assert_can_manage_access()
+
+	if not frappe.db.exists("Supplier", supplier):
+		frappe.throw(_("No such supplier."))
+
+	email = (email or "").strip().lower()
+	if not email:
+		frappe.throw(_("An email address is required — it is their username."))
+	from frappe.utils import validate_email_address
+	validate_email_address(email, throw=True)
+
+	existing_type = frappe.db.get_value("User", email, "user_type")
+	if existing_type == "System User":
+		# Refuse rather than quietly turning a staff account into a portal one.
+		frappe.throw(
+			_("{0} is already a staff user on this system. Use a different address for contractor access.").format(email),
+			title=_("That is a staff account"),
+		)
+
+	created = False
+	if not existing_type:
+		user = frappe.new_doc("User")
+		user.email = email
+		parts = (full_name or "").strip().split(" ", 1)
+		user.first_name = parts[0] or email.split("@")[0]
+		if len(parts) > 1:
+			user.last_name = parts[1]
+		user.user_type = "Website User"        # forced: never a desk account
+		user.enabled = 1
+		user.send_welcome_email = 1 if int(send_invite or 0) else 0
+		user.append("roles", {"role": PORTAL_ROLE})
+		user.insert(ignore_permissions=True)
+		created = True
+	else:
+		user = frappe.get_doc("User", email)
+		if PORTAL_ROLE not in [r.role for r in (user.roles or [])]:
+			user.append("roles", {"role": PORTAL_ROLE})
+			user.save(ignore_permissions=True)
+
+	sup = frappe.get_doc("Supplier", supplier)
+	if not any((r.user or "") == email for r in (sup.portal_users or [])):
+		sup.append("portal_users", {"user": email})
+		sup.save(ignore_permissions=True)
+
+	frappe.db.commit()
+	return {
+		"user": email,
+		"created": created,
+		"invited": bool(int(send_invite or 0)) and created,
+		"message": _("Access granted to {0}.").format(email),
+	}
+
+
+@frappe.whitelist()
+def revoke_portal_access(supplier, user, disable_login=0):
+	"""Remove this login's access to this supplier.
+
+	The User record is kept — they may hold access to another supplier, and
+	deleting it would orphan the comments and claims they authored. Optionally
+	disable the login outright.
+	"""
+	_assert_can_manage_access()
+
+	sup = frappe.get_doc("Supplier", supplier)
+	before = len(sup.portal_users or [])
+	sup.portal_users = [r for r in (sup.portal_users or []) if (r.user or "") != user]
+	if len(sup.portal_users) != before:
+		sup.save(ignore_permissions=True)
+
+	still_linked = frappe.db.count("Portal User", {"user": user, "parenttype": "Supplier"})
+	if int(disable_login or 0) and not still_linked:
+		frappe.db.set_value("User", user, "enabled", 0)
+
+	# End any live session immediately rather than waiting for it to expire.
+	frappe.db.sql("delete from tabSessions where user=%s", (user,))
+	frappe.db.commit()
+	return {"user": user, "still_has_other_suppliers": bool(still_linked)}
+
+
+@frappe.whitelist()
+def set_portal_user_enabled(user, enabled):
+	"""Suspend or restore a contractor login."""
+	_assert_can_manage_access()
+	if frappe.db.get_value("User", user, "user_type") != "Website User":
+		frappe.throw(_("Not a portal login."), frappe.PermissionError)
+	on = 1 if int(enabled or 0) else 0
+	frappe.db.set_value("User", user, "enabled", on)
+	if not on:
+		frappe.db.sql("delete from tabSessions where user=%s", (user,))
+	frappe.db.commit()
+	return {"user": user, "enabled": on}
+
+
+@frappe.whitelist()
+def send_portal_invite(user, return_link=0):
+	"""Email them a fresh set-password link.
+
+	`return_link` also hands the link back so it can be sent over WhatsApp,
+	which is how a site contractor is usually reached. It is single-use and
+	expires — treat it like a password.
+	"""
+	_assert_can_manage_access()
+	if frappe.db.get_value("User", user, "user_type") != "Website User":
+		frappe.throw(_("Not a portal login."), frappe.PermissionError)
+
+	doc = frappe.get_doc("User", user)
+	link = doc.reset_password(send_email=not int(return_link or 0))
+	frappe.db.commit()
+	return {
+		"user": user,
+		"emailed": not bool(int(return_link or 0)),
+		"link": link if int(return_link or 0) else None,
+	}
