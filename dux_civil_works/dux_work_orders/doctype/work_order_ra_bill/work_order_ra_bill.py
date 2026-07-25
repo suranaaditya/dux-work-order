@@ -1116,7 +1116,23 @@ def upload_supplier_invoice(ra_bill, invoice_no=None, invoice_date=None, invoice
 		"is_private": 1,
 		"content": content,
 	})
-	_file.insert(ignore_permissions=True)
+	try:
+		# Frappe screens the file itself here — notably it parses PDFs to
+		# reject embedded JavaScript. A corrupt or non-PDF file therefore
+		# blows up deep in pypdf; turn that into something a contractor on a
+		# building site can act on.
+		_file.insert(ignore_permissions=True)
+	except frappe.ValidationError:
+		raise
+	except Exception as exc:
+		frappe.log_error(
+			title="Contractor invoice upload rejected",
+			message=f"{doc.name}: {safe_name}: {exc!r}",
+		)
+		frappe.throw(
+			_("That file could not be read. Please upload a valid PDF or a clear photo."),
+			title=_("Unreadable file"),
+		)
 
 	doc.db_set("supplier_invoice_file", _file.file_url, update_modified=False)
 	if invoice_no:
