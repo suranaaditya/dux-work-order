@@ -84,3 +84,9 @@ table {
   border-collapse: collapse;
   width: 100%;
 }
+
+/* Destructive review action (Btn takes no style prop) */
+.danger-action > button {
+  color: var(--err);
+  border-color: var(--err);
+}

@@ -73,17 +73,22 @@ export function ReviewBar({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }}>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-        {actions.map((a) => (
-          <Btn
-            key={a.action}
-            variant={TONE[a.action] === "primary" ? "primary" : "ghost"}
-            onClick={() => (NEEDS_REASON[a.action] ? setPending(a) : run(a))}
-            disabled={apply.loading}
-            style={TONE[a.action] === "danger" ? { color: "var(--err)", borderColor: "var(--err)" } : undefined}
-          >
-            {apply.loading ? "Working…" : a.label}
-          </Btn>
-        ))}
+        {actions.map((a) => {
+          const btn = (
+            <Btn
+              key={a.action}
+              variant={TONE[a.action] === "primary" ? "primary" : "ghost"}
+              onClick={() => (NEEDS_REASON[a.action] ? setPending(a) : run(a))}
+              disabled={apply.loading}
+            >
+              {apply.loading ? "Working…" : a.label}
+            </Btn>
+          );
+          // Btn has no style prop; tint the destructive action via a wrapper.
+          return TONE[a.action] === "danger" ? (
+            <span key={a.action} className="danger-action" style={{ display: "inline-flex" }}>{btn}</span>
+          ) : btn;
+        })}
       </div>
 
       {pending && (
