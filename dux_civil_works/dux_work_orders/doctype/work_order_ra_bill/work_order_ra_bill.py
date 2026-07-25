@@ -796,6 +796,16 @@ REVIEW_ACTION_ROLES = {
 	"withdraw": ("WO Creator", "Accounts User", "Accounts Manager", "Contractor Portal"),
 }
 
+#: Past-tense wording for the conversation thread.
+REVIEW_EVENT_TEXT = {
+	"submit_for_review": "Sent this claim for review",
+	"approve": "Approved this claim",
+	"return_for_revision": "Returned this claim for revision",
+	"reject": "Rejected this claim",
+	"reopen": "Re-opened this claim",
+	"withdraw": "Withdrew this claim",
+}
+
 REVIEW_ACTION_LABELS = {
 	"submit_for_review": "Submit for review",
 	"approve": "Approve",
@@ -907,6 +917,9 @@ def _review_methods(cls):
 		else:
 			self.db_set("review_state", next_state, update_modified=False)
 
+		# Record the move itself, so the thread reads as a full history rather
+		# than only the moments somebody happened to type a reason.
+		self.add_comment("Info", text=REVIEW_EVENT_TEXT.get(action, REVIEW_ACTION_LABELS.get(action, action)))
 		if comment:
 			self.add_comment("Comment", text=comment)
 
@@ -990,7 +1003,17 @@ def update_certified_quantities(ra_bill, entries, deductions=None):
 				# A hand-set figure is no longer the engine's suggestion.
 				row.is_auto_suggested = 0
 
+	before = flt(doc.net_payable or 0)
 	doc.save()
+	after = flt(doc.net_payable or 0)
+	if abs(after - before) > 0.01:
+		doc.add_comment(
+			"Info",
+			text=_("Certified value changed from {0} to {1}").format(
+				frappe.format_value(before, {"fieldtype": "Currency"}),
+				frappe.format_value(after, {"fieldtype": "Currency"}),
+			),
+		)
 	return {
 		"net_payable": flt(doc.net_payable or 0),
 		"gross_this_bill": flt(doc.gross_this_bill or 0),
@@ -1245,3 +1268,86 @@ def get_open_claim(work_order):
 		if (r.get("review_state") or "Draft") not in CLOSED_REVIEW_STATES:
 			return r
 	return None
+
+
+# ============================================================
+# The conversation on a claim (Phase 6)
+# ============================================================
+# Threads hang off the claim itself rather than living in a chat window, so
+# the reason a quantity was cut is still there next to the claim it affected
+# a year later. Frappe's Comment record does the storing; permission is the
+# claim's own, so portal scoping applies unchanged.
+
+_TAG_RE = None
+
+
+def _plain(text):
+	"""Comments may carry markup; the UI renders text, so strip it."""
+	global _TAG_RE
+	import re
+	if _TAG_RE is None:
+		_TAG_RE = re.compile(r"<[^>]+>")
+	import html
+	return html.unescape(_TAG_RE.sub("", text or "")).strip()
+
+
+@frappe.whitelist()
+def get_claim_thread(ra_bill):
+	"""Messages and events on a claim, oldest first."""
+	from dux_civil_works.dux_work_orders.api.portal import is_portal_user
+
+	doc = frappe.get_doc("Work Order RA Bill", ra_bill)
+	doc.check_permission("read")
+
+	rows = frappe.get_all(
+		"Comment",
+		filters={
+			"reference_doctype": "Work Order RA Bill",
+			"reference_name": ra_bill,
+			"comment_type": ["in", ["Comment", "Info"]],
+		},
+		fields=["name", "comment_type", "content", "owner", "creation"],
+		order_by="creation asc",
+		limit_page_length=0,
+	)
+
+	owners = {r["owner"] for r in rows if r.get("owner")}
+	names = {}
+	contractors = set()
+	for u in owners:
+		names[u] = frappe.db.get_value("User", u, "full_name") or u
+		try:
+			# is_portal_user, NOT a raw role check: frappe.get_roles("Administrator")
+			# returns every role, so a raw check labels the client's own messages
+			# as coming from the contractor.
+			if is_portal_user(u):
+				contractors.add(u)
+		except Exception:
+			pass
+
+	return [{
+		"name": r["name"],
+		"kind": "event" if r["comment_type"] == "Info" else "message",
+		"text": _plain(r["content"]),
+		"by": r["owner"],
+		"by_name": names.get(r["owner"], r["owner"]),
+		"side": "contractor" if r["owner"] in contractors else "client",
+		"at": str(r["creation"]),
+	} for r in rows]
+
+
+@frappe.whitelist()
+def post_claim_comment(ra_bill, text):
+	"""Add a message to a claim's thread."""
+	doc = frappe.get_doc("Work Order RA Bill", ra_bill)
+	doc.check_permission("read")
+
+	text = (text or "").strip()
+	if not text:
+		frappe.throw(_("Write something first."))
+	if len(text) > 2000:
+		frappe.throw(_("That message is too long (2000 characters max)."))
+
+	doc.add_comment("Comment", text=text)
+	frappe.db.commit()
+	return get_claim_thread(ra_bill)

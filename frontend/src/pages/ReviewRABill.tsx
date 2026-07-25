@@ -12,6 +12,7 @@ import { useFrappeGetDoc, useFrappePostCall } from "frappe-react-sdk";
 import { Btn, Card, Chip, ErrorNote, Loading, Money, Num, PageHead, SectionTitle } from "../components/ui";
 import { Icon } from "../components/icons";
 import { ReviewBar, serverMessage, useReviewStatus } from "../components/ReviewBar";
+import { ClaimThread } from "../components/ClaimThread";
 import { num, qty as fq } from "../lib/format";
 import { isAddition, type WorkOrderRABill } from "../lib/types";
 
@@ -226,6 +227,10 @@ export default function ReviewRABill() {
             GST and TDS are applied on the Purchase Invoice, not on this certificate.
           </div>
         </Card>
+      </div>
+
+      <div style={{ marginTop: 18 }}>
+        <ClaimThread raBill={name} />
       </div>
     </>
   );

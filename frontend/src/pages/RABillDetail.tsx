@@ -17,6 +17,7 @@ import {
 } from "../components/ui";
 import { Icon } from "../components/icons";
 import { ReviewBar, serverMessage, useReviewStatus } from "../components/ReviewBar";
+import { ClaimThread } from "../components/ClaimThread";
 import { fmtDate, inr, num, pct, qty } from "../lib/format";
 import {
   isAddition,
@@ -286,6 +287,10 @@ export default function RABillDetail() {
         </Card>
 
         <Computation b={b} />
+      </div>
+
+      <div style={{ marginTop: 18 }}>
+        <ClaimThread raBill={name} />
       </div>
     </>
   );

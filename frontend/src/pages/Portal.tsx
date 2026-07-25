@@ -16,6 +16,7 @@ import { useFrappeAuth, useFrappeCreateDoc, useFrappeGetCall, useFrappeGetDoc, u
 import { Card, Chip, ErrorNote, Loading, Money, Num, PageHead, SectionTitle } from "../components/ui";
 import { Icon } from "../components/icons";
 import { serverMessage } from "../components/ReviewBar";
+import { ClaimThread } from "../components/ClaimThread";
 import { fmtDate, num, pct, qty as fq } from "../lib/format";
 import { portalTitle, usePortal } from "../lib/portal";
 import type { WorkOrderRABill } from "../lib/types";
@@ -676,7 +677,7 @@ function PortalClaim() {
         <Card style={{ padding: 15, marginBottom: 16, borderLeft: "3px solid var(--err)" }}>
           <div style={{ fontWeight: 650, fontSize: 13, color: "var(--err)" }}>The client has sent this back to you</div>
           <div style={{ fontSize: 12.5, color: "var(--text-secondary)", marginTop: 4 }}>
-            See their note below, update the quantities with your site engineer, then send it again.
+            Their note is in the conversation below. Update the quantities with your site engineer, then send it again.
           </div>
         </Card>
       )}
@@ -739,6 +740,10 @@ function PortalClaim() {
       </Card>
 
       {err && <div style={{ marginTop: 12, fontSize: 12.5, color: "var(--err)" }}>{err}</div>}
+
+      <div style={{ marginTop: 18 }}>
+        <ClaimThread raBill={name} accent="#c96a10" />
+      </div>
 
       <div style={{ marginTop: 16, fontSize: 11.5, color: "var(--text-faint)", lineHeight: 1.6 }}>
         GST and TDS are applied on the tax invoice, not on this claim.
