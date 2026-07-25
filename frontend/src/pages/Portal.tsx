@@ -739,7 +739,7 @@ function InvoiceUpload({ bill, onDone }: { bill: any; onDone: () => void }) {
       <div style={{ fontWeight: 700, fontSize: 13.5 }}>Upload your tax invoice</div>
       <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3, marginBottom: 12 }}>
         This claim is approved for <b className="mono">{num(bill.net_payable)}</b>. Raise your invoice for that
-        amount and attach it here — PDF or photo, up to 5 MB.
+        amount and attach it here — PDF, scan or phone photo, up to 10 MB.
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12 }}>
         <div>
@@ -759,8 +759,13 @@ function InvoiceUpload({ bill, onDone }: { bill: any; onDone: () => void }) {
         </div>
       </div>
       <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
-        <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setFile(e.target.files?.[0] || null)}
-          style={{ fontSize: 12.5, color: "var(--text-secondary)" }} />
+        <div>
+          <input type="file" accept="application/pdf,image/*" onChange={(e) => setFile(e.target.files?.[0] || null)}
+            style={{ fontSize: 12.5, color: "var(--text-secondary)" }} />
+          <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 4 }}>
+            PDF, JPG, PNG, WEBP, HEIC or TIFF
+          </div>
+        </div>
         <button onClick={send} disabled={busy || !file} style={{
           marginLeft: "auto", background: (busy || !file) ? "var(--border-strong)" : "#c96a10", color: "#fff",
           border: "none", borderRadius: 8, padding: "9px 16px", fontSize: 13, fontWeight: 650,

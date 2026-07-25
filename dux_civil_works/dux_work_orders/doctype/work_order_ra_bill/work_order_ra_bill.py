@@ -1050,9 +1050,19 @@ def get_portal_work_orders():
 # create an accounting document — staff still raise the Purchase Invoice.
 # This is a file plus three facts, nothing more.
 
-#: Deliberately narrow. An upload box is the most attacked thing we expose.
-ALLOWED_INVOICE_EXTENSIONS = (".pdf", ".jpg", ".jpeg", ".png")
-MAX_INVOICE_BYTES = 5 * 1024 * 1024
+#: Deliberately an allow-list — an upload box is the most attacked thing we
+#: expose. Broad enough for how invoices actually arrive from a building site:
+#: a scan (pdf/tiff), a phone photo (jpg/heic/webp), a screenshot (png).
+#: .heic/.heif are accepted because that is an iPhone's default and refusing
+#: it would just strand people; note most browsers cannot PREVIEW it, so it
+#: downloads instead. Install pillow-heif if in-browser preview is wanted.
+ALLOWED_INVOICE_EXTENSIONS = (
+	".pdf",
+	".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".avif",
+	".tif", ".tiff", ".bmp",
+)
+#: Phone cameras routinely produce 6-8 MB stills, so 5 MB was too tight.
+MAX_INVOICE_BYTES = 10 * 1024 * 1024
 
 
 def _claim_for_invoice_upload(ra_bill):
@@ -1094,14 +1104,16 @@ def upload_supplier_invoice(ra_bill, invoice_no=None, invoice_date=None, invoice
 	filename = (getattr(upload, "filename", "") or "").strip()
 	if not filename.lower().endswith(ALLOWED_INVOICE_EXTENSIONS):
 		frappe.throw(
-			_("Upload a PDF or an image ({0}).").format(", ".join(ALLOWED_INVOICE_EXTENSIONS))
+			_("Upload a PDF, a scan or a photo. Accepted: {0}.").format(
+				", ".join(e.lstrip(".").upper() for e in ALLOWED_INVOICE_EXTENSIONS)
+			)
 		)
 
 	content = upload.stream.read()
 	if not content:
 		frappe.throw(_("That file is empty."))
 	if len(content) > MAX_INVOICE_BYTES:
-		frappe.throw(_("That file is larger than 5 MB."))
+		frappe.throw(_("That file is larger than 10 MB. Try a lower-resolution photo."))
 
 	# Let Frappe sanitise the stored name; never trust the client's path.
 	import os
