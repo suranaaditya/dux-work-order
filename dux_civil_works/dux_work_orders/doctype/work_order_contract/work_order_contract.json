@@ -386,7 +386,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-06-01 13:45:22.989995",
+ "modified": "2026-07-25 15:25:58.931027",
  "modified_by": "Administrator",
  "module": "Dux Work Orders",
  "name": "Work Order Contract",
@@ -433,6 +433,12 @@
    "role": "Accounts User",
    "share": 1,
    "write": 1
+  },
+  {
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Contractor Portal"
   }
  ],
  "row_format": "Dynamic",

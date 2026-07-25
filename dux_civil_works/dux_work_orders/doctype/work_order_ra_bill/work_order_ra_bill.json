@@ -280,7 +280,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-05-21 21:17:46.780105",
+ "modified": "2026-07-25 15:25:59.149576",
  "modified_by": "Administrator",
  "module": "Dux Work Orders",
  "name": "Work Order RA Bill",
@@ -300,6 +300,12 @@
    "share": 1,
    "submit": 1,
    "write": 1
+  },
+  {
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Contractor Portal"
   }
  ],
  "row_format": "Dynamic",
