@@ -5,10 +5,94 @@ import frappe
 from frappe import _
 
 
+# ============================================================
+# Project dimension: Work Order Contract -> project -> item rows
+# ============================================================
+# Both of these run in before_validate, and the ORDER MATTERS.
+#
+# Frappe runs before_validate BEFORE validate (frappe/model/document.py
+# run_before_save_methods). Filling the header project in validate while
+# cascading to items in before_validate would cascade an empty value and
+# leave every item row blank — so the fill has to happen first, here.
+#
+# The cascade is not cosmetic. ERPNext computes Project.total_purchase_cost
+# from Purchase Invoice ITEM.project:
+#
+#     .select(Sum(pitem.base_net_amount))
+#     .where((pitem.project == project) & (pitem.docstatus == 1))
+#
+# A header-only project leaves that rollup at zero. GL Entries are the
+# opposite — get_gl_dict seeds every row with the HEADER project — so both
+# levels have to carry it for the dimension to be trustworthy.
+#
+# Mirrors the cascade in Stock Entry.before_validate.
+
+
+def pi_before_validate(doc, method=None):
+	_fill_project_from_work_order(doc)
+	_cascade_project_to_items(doc)
+
+
+def _fill_project_from_work_order(doc):
+	"""Seed a BLANK project from the linked Work Order.
+
+	A project the user typed always wins — this only ever fills an empty
+	field, never corrects one. Server-side so the REST API, data import and
+	the Desk form all behave identically; the client script mirrors it purely
+	for immediate feedback.
+	"""
+	if not doc.get("work_order_contract"):
+		return
+	if doc.get("project"):
+		return
+	wo_project = frappe.db.get_value(
+		"Work Order Contract", doc.get("work_order_contract"), "project"
+	)
+	if wo_project:
+		doc.project = wo_project
+
+
+def _cascade_project_to_items(doc):
+	"""Copy the header project onto every item row that has not got one.
+
+	Rows where somebody set a different project are left alone — an invoice
+	may legitimately split across projects at the line level.
+	"""
+	if not doc.get("project"):
+		return
+	for item in (doc.get("items") or []):
+		if not item.get("project"):
+			item.project = doc.project
+
+
+def _validate_work_order_company(doc):
+	"""The linked Work Order must belong to the invoice's company."""
+	wo = doc.get("work_order_contract")
+	if not wo:
+		return
+	wo_company = frappe.db.get_value("Work Order Contract", wo, "company")
+	if wo_company and doc.company and wo_company != doc.company:
+		frappe.throw(
+			_(
+				"Work Order {0} belongs to company {1}, but this invoice is for {2}. "
+				"An invoice can only reference a Work Order from its own company."
+			).format(frappe.bold(wo), frappe.bold(wo_company), frappe.bold(doc.company)),
+			title=_("Work Order company mismatch"),
+		)
+
+
 def pi_validate(doc, method=None):
-	"""Run on every Purchase Invoice save. If this PI references RA Bills,
-	enforce the net-payable cap unless an Accounts Manager (or System Manager)
-	has provided an override reason."""
+	"""Run on every Purchase Invoice save.
+
+	Two independent concerns share this hook:
+	  1. the linked Work Order must belong to this invoice's company;
+	  2. if this PI references RA Bills, enforce the net-payable cap unless an
+	     Accounts Manager (or System Manager) has provided an override reason.
+
+	(1) applies to every invoice, so it runs before the RA-bill early return.
+	"""
+	_validate_work_order_company(doc)
+
 	if not getattr(doc, "is_wo_ra_bill_invoice", 0):
 		return
 

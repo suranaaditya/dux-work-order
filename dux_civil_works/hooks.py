@@ -283,6 +283,14 @@ fixtures = [
     # app source), so without exporting them as fixtures they would never
     # travel from dev to production. Importing on every `bench migrate`
     # keeps prod in sync with what we configure on dev.
+    # Custom Fields this app owns on OTHER apps' doctypes. Filtered by module
+    # rather than by doctype: a `dt` filter would sweep up every other app's
+    # custom fields on Purchase Invoice (india_compliance alone adds dozens).
+    # Anything this app adds must therefore carry module="Dux Work Orders".
+    {
+        "doctype": "Custom Field",
+        "filters": [["module", "=", "Dux Work Orders"]],
+    },
     {
         "doctype": "Property Setter",
         "filters": [
@@ -309,6 +317,12 @@ doctype_js = {
 # Server-side hooks for Purchase Invoice <-> Work Order RA Bill linkage
 doc_events = {
     "Purchase Invoice": {
+        # before_validate runs BEFORE validate. The Work-Order -> project fill
+        # and the project -> item-rows cascade both live there, in that order:
+        # cascading from a project that validate has not filled yet would leave
+        # every item row blank, and Project.total_purchase_cost reads the ITEM
+        # project. See purchase_invoice_hooks for the full note.
+        "before_validate": "dux_civil_works.dux_work_orders.api.purchase_invoice_hooks.pi_before_validate",
         "validate": "dux_civil_works.dux_work_orders.api.purchase_invoice_hooks.pi_validate",
         "on_submit": "dux_civil_works.dux_work_orders.api.purchase_invoice_hooks.pi_on_submit",
         "on_cancel": "dux_civil_works.dux_work_orders.api.purchase_invoice_hooks.pi_on_cancel",

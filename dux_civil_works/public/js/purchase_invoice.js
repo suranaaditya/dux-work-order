@@ -2,6 +2,40 @@
 // Purchase Invoice client-side enhancements for Work Order RA Bill integration.
 
 frappe.ui.form.on("Purchase Invoice", {
+	setup(frm) {
+		// One invoice never covers two Work Orders, so this is a single Link
+		// rather than a table. Scope the picker to Work Orders this invoice
+		// could plausibly be billing: same company, same supplier. Filters are
+		// built conditionally so an invoice with no company/supplier yet still
+		// shows a usable list instead of matching nothing.
+		frm.set_query("work_order_contract", () => {
+			const filters = {};
+			if (frm.doc.company) filters.company = frm.doc.company;
+			if (frm.doc.supplier) filters.supplier = frm.doc.supplier;
+			return { filters };
+		});
+	},
+
+	work_order_contract(frm) {
+		// Mirror of the server-side fill in pi_before_validate, purely so the
+		// Project appears the moment the Work Order is picked. The server is
+		// the source of truth and repeats this on every save, so REST, data
+		// import and this form all end up the same.
+		//
+		// A Project the user typed is NEVER overwritten — same rule as the
+		// server. The second check inside .then() guards the case where they
+		// type one while the lookup is in flight.
+		if (!frm.doc.work_order_contract || frm.doc.project) return;
+		frappe.db
+			.get_value("Work Order Contract", frm.doc.work_order_contract, "project")
+			.then((r) => {
+				const project = r && r.message && r.message.project;
+				if (project && !frm.doc.project) {
+					frm.set_value("project", project);
+				}
+			});
+	},
+
 	refresh(frm) {
 		if (frm.doc.is_wo_ra_bill_invoice
 			&& frm.doc.supplier

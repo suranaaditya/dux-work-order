@@ -1,0 +1,15 @@
+[
+ {
+  "doctype": "Custom Field",
+  "name": "Purchase Invoice-work_order_contract",
+  "dt": "Purchase Invoice",
+  "fieldname": "work_order_contract",
+  "label": "Work Order Contract",
+  "fieldtype": "Link",
+  "options": "Work Order Contract",
+  "insert_after": "wo_ra_bill_section",
+  "module": "Dux Work Orders",
+  "allow_on_submit": 0,
+  "description": "The Work Order this invoice bills against. One invoice never covers two Work Orders. Picker is filtered to this invoice's company and supplier. On save, a blank Project is filled from the Work Order's Project (a Project you typed yourself is never overwritten)."
+ }
+]
