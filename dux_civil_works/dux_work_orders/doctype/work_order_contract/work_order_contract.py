@@ -317,6 +317,60 @@ class WorkOrderContract(Document):
 				if value is not None:
 					self.set(wo_field, value)
 
+	# ============================================================
+	# Print helpers
+	# ============================================================
+	# Frappe's Jinja sandbox blocks arbitrary imports, but methods on `doc`
+	# are reachable from a print template — same bridge the Work Order
+	# Variation controller uses for get_print_scope_summary().
+
+	def get_print_party_address(self, party_type, party_name):
+		"""Resolve a party's address for the printed contract.
+
+		Address links live on the `Dynamic Link` CHILD TABLE, not on Address
+		itself — Address has no `link_doctype` / `link_name` column at all.
+		The print format used to filter Address by those fields directly,
+		which matched nothing and returned None on every single render. The
+		template guards with `{%- if caddr -%}`, so it failed silently: every
+		printed Work Order Contract showed the party NAMES with no address
+		and no GSTIN. Resolve through Dynamic Link instead.
+
+		Prefers the party's primary address; falls back to the first linked
+		address so a party who never ticked "primary" still prints.
+
+		`gstin` is only requested when the column exists — india_compliance
+		may not be installed on every site. This preserves the defensive
+		fetch added in a8556b6 (which until now was hardening a query that
+		returned nothing regardless).
+
+		Returns a dict of address fields, or None when the party has no
+		address linked.
+		"""
+		if not (party_type and party_name):
+			return None
+
+		fields = ["address_line1", "address_line2", "city", "state", "pincode", "country"]
+		if frappe.get_meta("Address").has_field("gstin"):
+			fields.append("gstin")
+
+		linked = frappe.get_all(
+			"Dynamic Link",
+			filters={
+				"parenttype": "Address",
+				"link_doctype": party_type,
+				"link_name": party_name,
+			},
+			pluck="parent",
+		)
+		if not linked:
+			return None
+
+		addr_name = frappe.db.get_value(
+			"Address", {"name": ["in", linked], "is_primary_address": 1}, "name"
+		) or linked[0]
+
+		return frappe.db.get_value("Address", addr_name, fields, as_dict=True)
+
 	def on_submit(self):
 		# Hook point for Phase 2 BOQ-freeze logic.
 		# Phase 1: just record the submission. Nothing else to do yet.

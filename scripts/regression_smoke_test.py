@@ -129,6 +129,37 @@ def run_smoke_test():
 		assert wo.retention_release_after_dlp == 0, "Explicit 0 release was overwritten: " + str(wo.retention_release_after_dlp)
 		print("  retention_release_after_dlp=0 preserved (no truthy-fallback bug)")
 
+		# 44999e2 canary: BOTH release fields explicitly 0 must be read as
+		# 'the engineer left this blank' and default to 100/0 - NOT rejected
+		# by the sum-to-100 guard. Frappe normalises a blank Percent cell to
+		# 0.0 in the DB, so 0/0 is exactly what a freshly-saved blank section
+		# looks like. Before 44999e2 only None/empty-string took the default
+		# branch, so saving with the section blank threw 'must sum to 100' on
+		# a form the engineer had never touched.
+		wo.retention_release_on_final_bill = 0
+		wo.retention_release_after_dlp = 0
+		wo.save()
+		wo.reload()
+		assert wo.retention_release_on_final_bill == 100, ('0/0 split not defaulted to 100: ' + str(wo.retention_release_on_final_bill))
+		assert wo.retention_release_after_dlp == 0, ('0/0 split left a non-zero DLP share: ' + str(wo.retention_release_after_dlp))
+		print('  0/0 release split auto-defaults to 100/0 (44999e2 canary)')
+
+		# ...and a deliberate, valid non-default split is still respected. The
+		# default branch must not reach past the all-zero case and swallow a
+		# real user choice.
+		wo.retention_release_on_final_bill = 60
+		wo.retention_release_after_dlp = 40
+		wo.save()
+		wo.reload()
+		assert (wo.retention_release_on_final_bill == 60 and wo.retention_release_after_dlp == 40), ('valid 60/40 split was overwritten: ' + str(wo.retention_release_on_final_bill) + '/' + str(wo.retention_release_after_dlp))
+		print('  valid 60/40 split preserved (default branch does not over-reach)')
+
+		# restore the standard split for the remainder of the run
+		wo.retention_release_on_final_bill = 100
+		wo.retention_release_after_dlp = 0
+		wo.save()
+		wo.reload()
+
 		# Fresh WO without any release values: prefill must populate them from Settings.
 		# Inline mini-canary — create, verify defaults, delete.
 		wo_default = frappe.new_doc("Work Order Contract")
