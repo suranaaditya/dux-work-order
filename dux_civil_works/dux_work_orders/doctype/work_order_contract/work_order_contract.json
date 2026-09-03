@@ -1,7 +1,7 @@
 {
  "actions": [],
  "autoname": "naming_series:",
- "creation": "2026-04-29 00:07:15.610407",
+ "creation": "2026-09-03 14:56:06.737400",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
@@ -121,11 +121,13 @@
    "read_only": 1
   },
   {
-   "description": "Optional. Link to a Project for cost roll-up.",
+   "allow_on_submit": 1,
+   "description": "Required. Every work order belongs to a project - this is what rolls the committed contract value up to the Capital Projects view. Editable after submit, so work orders raised before this became mandatory can still be tagged without cancelling and amending them.",
    "fieldname": "project",
    "fieldtype": "Link",
    "label": "Project",
-   "options": "Project"
+   "options": "Project",
+   "reqd": 1
   },
   {
    "fieldname": "section_scope",
@@ -386,7 +388,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-06-01 13:45:22.989995",
+ "modified": "2026-09-03 15:13:44.078301",
  "modified_by": "Administrator",
  "module": "Dux Work Orders",
  "name": "Work Order Contract",
