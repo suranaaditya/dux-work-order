@@ -26,12 +26,6 @@ def run_smoke_test():
 	# --- Sample data lookup ---
 	sample_company = frappe.db.get_value("Company", {}, "name")
 	sample_supplier = frappe.db.get_value("Supplier", {}, "name")
-	# Work Order Contract.project is mandatory (and allow_on_submit) so that
-	# committed value rolls up per project. Every WO this suite creates must
-	# therefore carry one. Reuse a Project on the sample company if there is
-	# one; otherwise make a throwaway and clean it up with everything else.
-	sample_project = frappe.db.get_value("Project", {"company": sample_company}, "name")
-	_project_created = False
 	if not (sample_company and sample_supplier):
 		print("ABORT - no Company or Supplier on this site to test against.")
 		return
@@ -55,16 +49,6 @@ def run_smoke_test():
 
 	created_docs = []  # for cleanup tracking
 
-	if not sample_project:
-		_p = frappe.new_doc("Project")
-		_p.project_name = "Smoke test project - delete me"
-		_p.company = sample_company
-		_p.insert(ignore_permissions=True)
-		sample_project = _p.name
-		_project_created = True
-		created_docs.append(("Project", _p.name))
-	print("Sample project: " + str(sample_project) + ("  (created for this run)" if _project_created else ""))
-
 	try:
 		# ============================================================
 		# PHASE 1 - Work Order Contract with embedded BOQ
@@ -74,7 +58,6 @@ def run_smoke_test():
 		wo = frappe.new_doc("Work Order Contract")
 		wo.company = sample_company
 		wo.supplier = sample_supplier
-		wo.project = sample_project
 		wo.wo_date = frappe.utils.today()
 		wo.work_title = "Smoke test WO - please delete"
 		wo.retention_percentage = 5
@@ -182,7 +165,6 @@ def run_smoke_test():
 		wo_default = frappe.new_doc("Work Order Contract")
 		wo_default.company = sample_company
 		wo_default.supplier = sample_supplier
-		wo_default.project = sample_project
 		wo_default.wo_date = frappe.utils.today()
 		wo_default.work_title = "Smoke test prefill canary - delete"
 		wo_default.append("boq_items", {
@@ -381,7 +363,6 @@ def run_smoke_test():
 		wo_tax = frappe.new_doc("Work Order Contract")
 		wo_tax.company = sample_company
 		wo_tax.supplier = sample_supplier
-		wo_tax.project = sample_project
 		wo_tax.wo_date = frappe.utils.today()
 		wo_tax.work_title = "Tax canary - please delete"
 		wo_tax.retention_percentage = 5
